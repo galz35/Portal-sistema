@@ -1,0 +1,9 @@
+const jwt = require('jsonwebtoken');
+const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjI1LCJ1c2VybmFtZSI6IjUwMDcwOCIsImNhcm5ldCI6IjUwMDcwOCIsIm5hbWUiOiJHVVNUQVZPIEFET0xGTyBMSVJBIFNBTEFaQVIiLCJjb3JyZW8iOiJndXN0YXZvLmxpcmFAY2xhcm8uY29tLm5pIiwiYXBwcyI6WyJwb3J0YWwiLCJ2YWNhbnRlcyIsInBsYW5lciIsImNsaW5pY2EiLCJpbnZlbnRhcmlvIl0sInBlcm1pc29zIjpbImFwcC5wb3J0YWwiLCJhcHAudmFjYW50ZXMiLCJhcHAudmFjYW50ZXMucHVibGljby52ZXIiLCJ2YWNhbnRlcy5jYW5kaWRhdG8ucG9zdHVsYXIiLCJ2YWNhbnRlcy5yaC52ZXIiLCJ2YWNhbnRlcy5yaC5jcmVhciIsInZhY2FudGVzLnJoLmVzdGFkbyIsInBsYW5lci52ZXIiXSwidHlwZSI6IlNTT19QT1JUQUwiLCJpYXQiOjE3NzM2ODI5NDMsImV4cCI6MTc3MzY4MzU0M30.atLcNqZuT0ZR6njz4dIThJ7ZoV5OoDSp0PPYNAnumM0';
+const secret = 'ClaroSSO_Shared_Secret_2026_!#';
+try {
+    const d = jwt.verify(token, secret);
+    console.log('Valid');
+} catch(e) {
+    console.log(e.message);
+}

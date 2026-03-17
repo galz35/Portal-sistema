@@ -1,0 +1,23 @@
+doctype html
+html
+  head
+    meta(charset="UTF-8")
+    style.
+      body { font-family: sans-serif; background-color: #f0f2f5; padding: 20px; }
+      .container { background-color: #ffffff; padding: 30px; border-radius: 12px; max-width: 600px; margin: 0 auto; border: 1px solid #e1e4e8; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+      .header { border-bottom: 3px solid #6366f1; padding-bottom: 15px; margin-bottom: 25px; text-align: center; }
+      .header h2 { color: #1f2937; margin: 0; }
+      .footer { margin-top: 40px; font-size: 11px; color: #9ca3af; text-align: center; border-top: 1px solid #f3f4f6; padding-top: 20px; }
+      .btn { display: inline-block; background-color: #6366f1; color: white !important; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 20px; }
+  body
+    .container
+      .header
+        h2 Portal Central
+      p Hola <strong>#{nombre}</strong>,
+      p(style="color: #4b5563; line-height: 1.6;") #{mensaje}
+      if accion_url
+        div(style="text-align: center;")
+          a.btn(href="#{accion_url}") #{accion_texto || 'Entrar al Portal'}
+      .footer
+        p Este es un mensaje de seguridad del Portal Central de Aplicaciones.
+        p No compartas tus credenciales con nadie.

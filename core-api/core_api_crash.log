@@ -1,0 +1,50 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.64s
+     Running `D:\Users\gustavo.lira\.codex\memories\cargo-target\core-api\debug\core-api.exe`
+[2m2026-03-14T20:45:30.796743Z[0m [32m INFO[0m [2mcore_api[0m[2m:[0m core-api config loaded: sqlserver://sa:***@190.56.16.85:1433/PortalCore
+[2m2026-03-14T20:45:30.796781Z[0m [32m INFO[0m [2mcore_api[0m[2m:[0m core-api sql settings prepared
+[2m2026-03-14T20:45:30.796795Z[0m [33m WARN[0m [2mcore_api[0m[2m:[0m core-api security warning: MSSQL_USER sigue usando sa
+[2m2026-03-14T20:45:30.796801Z[0m [33m WARN[0m [2mcore_api[0m[2m:[0m core-api security warning: MSSQL_TRUST_CERT=true en un host no local
+[2m2026-03-14T20:45:30.796808Z[0m [33m WARN[0m [2mcore_api[0m[2m:[0m core-api security warning: JWT_SECRET sigue en valor por defecto
+Servidor corriendo en 127.0.0.1:8080
+
+thread 'main' (47324) panicked at src\main.rs:112:62:
+called `Result::unwrap()` on an `Err` value: Os { code: 10048, kind: AddrInUse, message: "Solo se permite un uso de cada dirección de socket (protocolo/dirección de red/puerto)" }
+stack backtrace:
+   0: std::panicking::panic_handler
+             at /rustc/01f6ddf7588f42ae2d7eb0a2f21d44e8e96674cf/library\std\src\panicking.rs:689
+   1: core::panicking::panic_fmt
+             at /rustc/01f6ddf7588f42ae2d7eb0a2f21d44e8e96674cf/library\core\src\panicking.rs:80
+   2: core::result::unwrap_failed
+             at /rustc/01f6ddf7588f42ae2d7eb0a2f21d44e8e96674cf/library\core\src\result.rs:1867
+   3: enum2$<core::result::Result<tokio::net::tcp::listener::TcpListener,std::io::error::Error> >::unwrap
+             at D:\Users\gustavo.lira\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\src\rust\library\core\src\result.rs:1233
+   4: core_api::main::async_block$0
+             at .\src\main.rs:112
+   5: tokio::runtime::park::impl$4::block_on::closure$0<enum2$<core_api::main::async_block_env$0> >
+             at D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-1.50.0\src\runtime\park.rs:284
+   6: tokio::task::coop::with_budget
+             at D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-1.50.0\src\task\coop\mod.rs:167
+   7: tokio::task::coop::budget
+             at D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-1.50.0\src\task\coop\mod.rs:133
+   8: tokio::runtime::park::CachedParkThread::block_on<enum2$<core_api::main::async_block_env$0> >
+             at D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-1.50.0\src\runtime\park.rs:284
+   9: tokio::runtime::context::blocking::BlockingRegionGuard::block_on<enum2$<core_api::main::async_block_env$0> >
+             at D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-1.50.0\src\runtime\context\blocking.rs:66
+  10: tokio::runtime::scheduler::multi_thread::impl$0::block_on::closure$0<enum2$<core_api::main::async_block_env$0> >
+             at D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-1.50.0\src\runtime\scheduler\multi_thread\mod.rs:89
+  11: tokio::runtime::context::runtime::enter_runtime<tokio::runtime::scheduler::multi_thread::impl$0::block_on::closure_env$0<enum2$<core_api::main::async_block_env$0> >,tuple$<> >
+             at D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-1.50.0\src\runtime\context\runtime.rs:65
+  12: tokio::runtime::scheduler::multi_thread::MultiThread::block_on<enum2$<core_api::main::async_block_env$0> >
+             at D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-1.50.0\src\runtime\scheduler\multi_thread\mod.rs:88
+  13: tokio::runtime::runtime::Runtime::block_on_inner<enum2$<core_api::main::async_block_env$0> >
+             at D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-1.50.0\src\runtime\runtime.rs:373
+  14: tokio::runtime::runtime::Runtime::block_on<enum2$<core_api::main::async_block_env$0> >
+             at D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-1.50.0\src\runtime\runtime.rs:345
+  15: core_api::main
+             at .\src\main.rs:118
+  16: core::ops::function::FnOnce::call_once<void (*)(),tuple$<> >
+             at D:\Users\gustavo.lira\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\src\rust\library\core\src\ops\function.rs:250
+  17: core::hint::black_box
+             at D:\Users\gustavo.lira\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\src\rust\library\core\src\hint.rs:473
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+error: process didn't exit successfully: `D:\Users\gustavo.lira\.codex\memories\cargo-target\core-api\debug\core-api.exe` (exit code: 101)

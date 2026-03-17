@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package core.auth;
+
+service AuthService {
+  rpc Login (LoginRequest) returns (LoginResponse);
+  rpc Refresh (RefreshRequest) returns (RefreshResponse);
+  rpc Logout (LogoutRequest) returns (LogoutResponse);
+  rpc Me (MeRequest) returns (MeResponse);
+}
+
+message LoginRequest {
+  string usuario = 1;
+  string clave = 2;
+  string tipo_login = 3;
+}
+
+message LoginResponse {
+  bool exito = 1;
+  string mensaje = 2;
+  int32 id_cuenta_portal = 3;
+  int32 id_persona = 4;
+  bool es_interno = 5;
+  bool es_externo = 6;
+}
+
+message RefreshRequest {
+  string refresh_token = 1;
+}
+
+message RefreshResponse {
+  bool exito = 1;
+  string mensaje = 2;
+}
+
+message LogoutRequest {
+  int32 id_cuenta_portal = 1;
+}
+
+message LogoutResponse {
+  bool exito = 1;
+}
+
+message MeRequest {
+  int32 id_cuenta_portal = 1;
+}
+
+message MeResponse {
+  int32 id_cuenta_portal = 1;
+  int32 id_persona = 2;
+  string nombre = 3;
+  bool es_interno = 4;
+  bool es_externo = 5;
+}

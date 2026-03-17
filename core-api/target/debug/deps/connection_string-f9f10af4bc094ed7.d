@@ -1,0 +1,9 @@
+D:\portal\core\core-api\target\debug\deps\connection_string-f9f10af4bc094ed7.d: D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\lib.rs D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\ado.rs D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\error.rs D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\jdbc.rs D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\utils.rs
+
+D:\portal\core\core-api\target\debug\deps\libconnection_string-f9f10af4bc094ed7.rmeta: D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\lib.rs D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\ado.rs D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\error.rs D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\jdbc.rs D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\utils.rs
+
+D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\lib.rs:
+D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\ado.rs:
+D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\error.rs:
+D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\jdbc.rs:
+D:\Users\gustavo.lira\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\connection-string-0.2.0\src\utils.rs:

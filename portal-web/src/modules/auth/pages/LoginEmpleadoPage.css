@@ -1,0 +1,355 @@
+/* ═══════════════════════════════════════════════════════════
+   Claro Nicaragua · Portal del Empleado · Login
+   Diseño corporativo: blanco + rojo, split layout, cálido
+   ═══════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --claro-red: #DA291C;
+  --claro-red-dark: #b8211a;
+  --claro-red-light: #fef2f2;
+  --claro-red-glow: rgba(218, 41, 28, 0.10);
+  --surface: #ffffff;
+  --surface-soft: #fafaf9;
+  --surface-muted: #f5f5f4;
+  --text-primary: #1c1917;
+  --text-secondary: #57534e;
+  --text-muted: #a8a29e;
+  --border-light: #e7e5e4;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-red: 0 4px 14px rgba(218, 41, 28, 0.20);
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+}
+
+/* ── Page: Split Layout ──────────────────────────────────── */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  color: var(--text-primary);
+  background: var(--surface);
+}
+
+/* ── Left Panel: Hero Image ──────────────────────────────── */
+.login-hero {
+  flex: 1;
+  display: none; /* hidden on mobile */
+  position: relative;
+  background-image: url('/bg-login.png');
+  background-size: cover;
+  background-position: center;
+  min-height: 100vh;
+}
+
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(218, 41, 28, 0.55) 0%,
+    rgba(28, 25, 23, 0.65) 100%
+  );
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 56px;
+}
+
+.hero-content {
+  animation: heroFadeIn 0.8s ease both;
+  animation-delay: 0.3s;
+}
+
+@keyframes heroFadeIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.hero-logo {
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  text-transform: lowercase;
+  letter-spacing: 2px;
+  margin-bottom: 20px;
+  opacity: 0.9;
+}
+
+.hero-headline {
+  font-size: 36px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.25;
+  margin: 0 0 16px 0;
+  letter-spacing: -0.5px;
+  max-width: 420px;
+}
+
+.hero-tagline {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+/* ── Right Panel: Form ───────────────────────────────────── */
+.login-panel {
+  flex: 0 0 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 48px;
+  position: relative;
+  background: var(--surface);
+  min-height: 100vh;
+}
+
+/* ── Card ────────────────────────────────────────────────── */
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  animation: cardEnter 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cardEnter {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+.login-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.badge-pill {
+  align-self: flex-start;
+  background: var(--claro-red-light);
+  color: var(--claro-red);
+  padding: 5px 12px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  border: none;
+}
+
+.login-title {
+  font-size: 30px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.5px;
+  color: var(--text-primary);
+}
+
+.login-subtitle {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── Form ────────────────────────────────────────────────── */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--text-muted);
+  font-size: 15px;
+  transition: color 0.25s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.login-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 12px 14px 12px 42px;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.login-input::placeholder {
+  color: var(--text-muted);
+}
+
+.login-input:hover {
+  border-color: #d6d3d1;
+}
+
+.login-input:focus {
+  border-color: var(--claro-red);
+  box-shadow: 0 0 0 3px var(--claro-red-glow);
+}
+
+.input-wrapper:focus-within .input-icon {
+  color: var(--claro-red);
+}
+
+/* ── Submit Button ───────────────────────────────────────── */
+.submit-btn {
+  background: var(--claro-red);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: var(--shadow-red);
+}
+
+.submit-btn:hover:not(:disabled) {
+  background: var(--claro-red-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(218, 41, 28, 0.30);
+}
+
+.submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  background: #e8a8a4;
+}
+
+/* ── Error Banner ────────────────────────────────────────── */
+.error-banner {
+  background: var(--claro-red-light);
+  border: 1px solid rgba(218, 41, 28, 0.12);
+  color: var(--claro-red-dark);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: slideDown 0.3s ease both;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
+.footer-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 14px;
+  background: var(--surface-muted);
+  border-radius: var(--radius-sm);
+}
+
+.footer-info i {
+  color: var(--claro-red);
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.footer-info p {
+  margin: 0;
+}
+
+.copyright {
+  position: absolute;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (min-width: 900px) {
+  .login-hero {
+    display: block;
+  }
+}
+
+@media (max-width: 899px) {
+  .login-panel {
+    flex: 1;
+    padding: 32px 24px;
+  }
+
+  .login-page {
+    background: var(--surface);
+    /* On mobile, show subtle bg hint at top */
+    background-image: linear-gradient(
+      to bottom,
+      var(--claro-red-light) 0%,
+      var(--surface) 180px
+    );
+  }
+
+  .login-card {
+    max-width: 400px;
+  }
+
+  .login-header {
+    align-items: center;
+    text-align: center;
+  }
+
+  .badge-pill {
+    align-self: center;
+  }
+}
