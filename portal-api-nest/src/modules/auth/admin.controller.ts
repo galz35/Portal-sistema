@@ -213,4 +213,142 @@ export class AdminController {
     this.logger.log(`📦 Importación masiva: ${created} creados, ${skipped} omitidos`);
     return { ok: true, creados: created, omitidos: skipped, detalle: results };
   }
+
+  // ── Sincronizar y Crear masivamente desde CSV/Excel ──
+  @Post('sync-users-bulk')
+  async syncUsersBulk(@Req() req: FastifyRequest, @Body() body: {
+    usuarios: Array<{
+      carnet: string;
+      nombre: string;
+      correo: string;
+      es_interno: string;
+      activo: string | number | boolean;
+      // Metadatos
+      cargo?: string;
+      departamento?: string;
+      gerencia?: string;
+      subgerencia?: string;
+      area?: string;
+      jefeCarnet?: string;
+      jefeNombre?: string;
+      jefeCorreo?: string;
+      telefono?: string;
+      genero?: string;
+      fechaIngreso?: string;
+      idOrg?: string;
+      orgDepartamento?: string;
+      orgGerencia?: string;
+    }>;
+    claveDefecto?: string;
+  }) {
+    await this.checkAdmin(req);
+
+    const clave = body.claveDefecto || '123456';
+    const hash = await argon2.hash(clave);
+    const results: Array<{ carnet: string; action: string; syncDetails: any; error?: string }> = [];
+
+    for (const u of body.usuarios) {
+      if (!u.carnet || !u.correo) continue;
+
+      try {
+        const correo = u.correo.trim().toLowerCase();
+        const carnet = u.carnet.trim();
+        const esInterno = (u.es_interno || '').toString().toUpperCase() === 'SI' ? 1 : 0;
+        
+        let activoVal = 1;
+        if (u.activo === 0 || u.activo === '0' || u.activo === 'NO' || u.activo === false || u.activo === 'FALSE') {
+          activoVal = 0;
+        }
+
+        const nameParts = u.nombre.trim().split(' ');
+        const nombres = nameParts[0] || '';
+        const ape1 = nameParts.length > 1 ? nameParts[1] : '';
+        const ape2 = nameParts.length > 2 ? nameParts.slice(2).join(' ') : '';
+        const usuarioLogin = correo.split('@')[0];
+
+        // 1. Upsert en Portal Central
+        let idPersona;
+        let idCuenta;
+        let isNew = false;
+        
+        const existReq = await this.db.Pool.request()
+          .input('c', carnet)
+          .input('email', correo)
+          .query('SELECT TOP 1 cp.IdCuentaPortal, p.IdPersona FROM CuentaPortal cp JOIN Persona p ON cp.IdPersona = p.IdPersona WHERE cp.Carnet = @c OR cp.CorreoLogin = @email');
+
+        if (existReq.recordset.length > 0) {
+          idCuenta = existReq.recordset[0].IdCuentaPortal;
+          idPersona = existReq.recordset[0].IdPersona;
+          // Actualizamos
+          await this.db.Pool.request()
+            .input('id', idCuenta)
+            .input('activo', activoVal)
+            .input('esInterno', esInterno)
+            .query('UPDATE CuentaPortal SET Activo = @activo, EsInterno = @esInterno, FechaModificacion = GETDATE() WHERE IdCuentaPortal = @id');
+        } else {
+          isNew = true;
+          // Persona
+          const rPersona = await this.db.Pool.request()
+            .input('nombres', nombres)
+            .input('ape1', ape1)
+            .input('ape2', ape2)
+            .query(`INSERT INTO Persona (Nombres, PrimerApellido, SegundoApellido, FechaCreacion) OUTPUT INSERTED.IdPersona VALUES (@nombres, @ape1, @ape2, GETDATE())`);
+          idPersona = rPersona.recordset[0].IdPersona;
+
+          // Cuenta
+          const rCuenta = await this.db.Pool.request()
+            .input('idPersona', idPersona)
+            .input('usuario', usuarioLogin)
+            .input('correo', correo)
+            .input('carnet', carnet)
+            .input('hash', hash)
+            .input('activo', activoVal)
+            .input('esInterno', esInterno)
+            .query(`
+              INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, FechaCreacion)
+              OUTPUT INSERTED.IdCuentaPortal VALUES (@idPersona, @usuario, @correo, @carnet, @hash, @activo, 0, @esInterno, GETDATE())
+            `);
+          idCuenta = rCuenta.recordset[0].IdCuentaPortal;
+
+          // Asignar Portal Desktop (app default)
+          const rApp = await this.db.Pool.request().query("SELECT IdAplicacion FROM AplicacionSistema WHERE Codigo = 'portal' AND Activo = 1");
+          if (rApp.recordset.length > 0) {
+             await this.db.Pool.request().input('u', idCuenta).input('a', rApp.recordset[0].IdAplicacion)
+              .query('INSERT INTO UsuarioAplicacion (IdCuentaPortal, IdAplicacion, Activo, FechaCreacion) VALUES (@u, @a, 1, GETDATE())');
+          }
+        }
+
+        // 2. Transmitir Webhook a Satélites
+        const payloadToSync = {
+          carnet: carnet,
+          nombre: u.nombre,
+          correo: correo,
+          activo: activoVal === 1,
+          esInterno: esInterno === 1,
+          cargo: u.cargo,
+          departamento: u.departamento,
+          gerencia: u.gerencia,
+          subgerencia: u.subgerencia,
+          area: u.area,
+          jefeCarnet: u.jefeCarnet,
+          jefeNombre: u.jefeNombre,
+          jefeCorreo: u.jefeCorreo,
+          telefono: u.telefono,
+          genero: u.genero,
+          fechaIngreso: u.fechaIngreso,
+          idOrg: u.idOrg,
+          orgDepartamento: u.orgDepartamento,
+          orgGerencia: u.orgGerencia
+        };
+
+        const syncLog = await this.authService.syncToSubmodules(payloadToSync);
+        results.push({ carnet, action: isNew ? 'CREATED' : 'UPDATED', syncDetails: syncLog });
+
+      } catch (err: any) {
+        results.push({ carnet: u.carnet, action: 'ERROR', syncDetails: [], error: err.message });
+      }
+    }
+
+    return { ok: true, procesados: results.length, detalle: results };
+  }
 }

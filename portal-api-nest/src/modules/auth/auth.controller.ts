@@ -156,7 +156,7 @@ export class AuthController {
   }
 
   @Post('change-password')
-  @UseGuards(SessionGuard, CsrfGuard)
+  @UseGuards(SessionGuard)
   async changePassword(@Req() req: FastifyRequest, @Body() body: any) {
     const session = (req as any).sessionUser as SessionUser;
     

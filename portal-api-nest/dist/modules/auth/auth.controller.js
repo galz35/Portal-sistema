@@ -23,7 +23,6 @@ const csrf_service_1 = require("../../shared/security/csrf.service");
 const rate_limit_service_1 = require("../../shared/security/rate-limit.service");
 const audit_logger_service_1 = require("../../shared/security/audit-logger.service");
 const session_guard_1 = require("../../shared/guards/session.guard");
-const csrf_guard_1 = require("../../shared/guards/csrf.guard");
 const auth_dto_1 = require("./dto/auth.dto");
 const request_metadata_1 = require("../../shared/security/request-metadata");
 const jsonwebtoken_1 = require("jsonwebtoken");
@@ -198,7 +197,7 @@ __decorate([
 ], AuthController.prototype, "sessionState", null);
 __decorate([
     (0, common_1.Post)('change-password'),
-    (0, common_1.UseGuards)(session_guard_1.SessionGuard, csrf_guard_1.CsrfGuard),
+    (0, common_1.UseGuards)(session_guard_1.SessionGuard),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),

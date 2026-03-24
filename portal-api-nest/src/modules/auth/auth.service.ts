@@ -364,4 +364,37 @@ export class AuthService {
       throw err;
     }
   }
+
+  // ===========================================================================
+  // SINCRONIZACIÓN DE USUARIOS A SUBMÓDULOS (Planer, Clima, Clinica)
+  // ===========================================================================
+  async syncToSubmodules(userPayload: any): Promise<any[]> {
+    const apps = [
+      { name: 'Planer', url: 'http://localhost:5175/api/auth/sso-sync-user' },
+      { name: 'Clinica', url: 'http://localhost:5176/api/auth/sso-sync-user' },
+      { name: 'Clima', url: 'http://localhost:5178/api/auth/sso-sync-user' },
+    ];
+
+    const results = [];
+    for (const app of apps) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        await fetch(app.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userPayload),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        results.push({ app: app.name, ok: true });
+      } catch (err: any) {
+        this.logger.error(`[SYNC] Error sincronizando hacia ${app.name}: ${err.message}`);
+        results.push({ app: app.name, ok: false, error: err.message });
+      }
+    }
+    return results;
+  }
 }

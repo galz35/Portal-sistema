@@ -65,7 +65,7 @@ export default function PortalDashboardPage() {
     <PortalShell
       eyebrow="Bienvenido"
       title={`Hola, ${user?.nombre?.split(' ')[0] || 'Usuario'}`}
-      description="Este es tu panel central de aplicaciones autorizadas. Desde aquí puedes navegar de forma segura por todo el ecosistema digital de Claro."
+      description="Este es tu panel central de aplicaciones autorizadas. Desde aquí puedes navegar de forma segura por todo el Claro Portal."
       user={{ nombre: user?.nombre || "Cargando...", rol: user?.usuario || "Empleado", carnet: user?.carnet }}
     >
       <div style={dashboardGridStyle}>
@@ -74,7 +74,7 @@ export default function PortalDashboardPage() {
           <div style={panelStyle}>
             <span style={statLabelStyle}>APLICACIONES AUTORIZADAS</span>
             <div style={statValueRowStyle}>
-              <span style={statValueStyle}>{apps.length}</span>
+              <span style={statValueStyle}>{apps.filter(a => a.codigo !== "portal").length}</span>
               <div style={statTrendStyle}>
                 <i className="fa-solid fa-check-circle"></i> VIGENTES
               </div>
@@ -110,7 +110,7 @@ export default function PortalDashboardPage() {
           </header>
 
           <div style={appsGridStyle}>
-            {apps.map((app) => (
+            {apps.filter(app => app.codigo !== "portal").map((app) => (
               <TarjetaSistema
                 key={app.codigo}
                 nombre={app.nombre}

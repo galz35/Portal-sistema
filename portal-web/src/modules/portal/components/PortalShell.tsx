@@ -107,7 +107,7 @@ export default function PortalShell({ eyebrow, title, description, actions, user
             {!collapsed && (
               <div style={{ display: "grid" }}>
                 <span style={logoTextStyle}>Claro</span>
-                <span style={logoSubtextStyle}>Ecosistema Digital</span>
+                <span style={logoSubtextStyle}>Portal</span>
               </div>
             )}
           </div>
@@ -171,9 +171,11 @@ export default function PortalShell({ eyebrow, title, description, actions, user
         </header>
 
         <div style={scrollAreaStyle}>
-          <div style={descriptionRowStyle}>
-             <p style={descriptionTextStyle}>{description}</p>
-          </div>
+          {description && (
+             <div style={descriptionRowStyle}>
+                <p style={descriptionTextStyle}>{description}</p>
+             </div>
+          )}
           <div style={contentBodyStyle}>
             {children}
           </div>

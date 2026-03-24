@@ -15,6 +15,8 @@ export default function PerfilBasePage() {
   const [profile, setProfile] = useState<MeProfile | null>(null);
   const [showPassModal, setShowPassModal] = useState(false);
   const [newPass, setNewPass] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
@@ -22,7 +24,12 @@ export default function PerfilBasePage() {
   }, []);
 
   const handleChangePassword = async () => {
-    if (!newPass) return alert("Por favor ingresa una nueva contraseña");
+    if (!newPass || !confirmPass) return alert("Por favor ingresa y confirma tu nueva contraseña");
+    if (newPass !== confirmPass) return alert("Las contraseñas no coinciden, por favor verifica.");
+    
+    const confirmed = window.confirm("¿Estás completamente seguro de que deseas cambiar tu contraseña?");
+    if (!confirmed) return;
+
     setUpdating(true);
     const csrf = getCsrfTokenFromCookie();
     console.log("🔐 CSRF Token detected:", csrf ? "YES (present)" : "NO (missing)");
@@ -55,8 +62,8 @@ export default function PerfilBasePage() {
   return (
     <PortalShell
       eyebrow="Configuración"
-      title="Mi Perfil Base"
-      description="Gestiona tu identidad digital dentro del ecosistema Claro. Los cambios realizados aquí se reflejarán en todos los sistemas autorizados."
+      title="Mi Perfil"
+      description=""
       user={{ nombre: profile?.nombre || "Cargando...", rol: profile?.usuario || "Empleado", carnet: profile?.carnet }}
     >
       <div style={profileGridStyle}>
@@ -105,25 +112,42 @@ export default function PerfilBasePage() {
                 </div>
                 <h3 style={{ margin: "16px 0 8px", fontSize: 22, fontWeight: 900, color: "#0f172a" }}>Seguridad de Acceso</h3>
                 <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
-                    Ingresa tu nueva contraseña para el ecosistema Claro. 
+                    Ingresa tu nueva contraseña para el Claro Portal. 
                     Usamos <strong>Argon2id</strong> para proteger tus datos.
                 </p>
             </header>
 
-            <div style={{ position: 'relative' }}>
+            <div style={{ position: 'relative', marginBottom: 16 }}>
                 <i className="fa-solid fa-key" style={inputIconStyle}></i>
                 <input 
-                  type="password" 
+                  type={showPass ? "text" : "password"} 
                   placeholder="Nueva contraseña robusta..." 
-                  style={modalInputStyle}
+                  style={{...modalInputStyle, paddingRight: 48}}
                   value={newPass}
                   onChange={(e) => setNewPass(e.target.value)}
                   autoFocus
                 />
+                <button 
+                  onClick={() => setShowPass(!showPass)}
+                  style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', outline: 'none' }}
+                >
+                  <i className={showPass ? "fa-solid fa-eye-slash" : "fa-solid fa-eye"}></i>
+                </button>
+            </div>
+
+            <div style={{ position: 'relative' }}>
+                <i className="fa-solid fa-lock" style={inputIconStyle}></i>
+                <input 
+                  type={showPass ? "text" : "password"} 
+                  placeholder="Confirma la nueva contraseña..." 
+                  style={{...modalInputStyle, paddingRight: 48}}
+                  value={confirmPass}
+                  onChange={(e) => setConfirmPass(e.target.value)}
+                />
             </div>
 
             <div style={{ display: "flex", gap: 12, justifyContent: "stretch", marginTop: 32 }}>
-              <button style={{ ...secondaryButtonStyle, flex: 1 }} onClick={() => { setShowPassModal(false); setNewPass(""); }}>CANCELAR</button>
+              <button style={{ ...secondaryButtonStyle, flex: 1 }} onClick={() => { setShowPassModal(false); setNewPass(""); setConfirmPass(""); setShowPass(false); }}>CANCELAR</button>
               <button 
                 style={{ ...primaryActionButtonStyle, flex: 1.5, boxShadow: "0 10px 20px -5px rgba(218, 41, 28, 0.4)" }} 
                 onClick={handleChangePassword}

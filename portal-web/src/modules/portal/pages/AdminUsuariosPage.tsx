@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, type CSSProperties } from "react";
 import PortalShell, { panelStyle } from "../components/PortalShell";
+import Papa from "papaparse";
 
 type UsuarioAdmin = {
     IdCuentaPortal: number;
@@ -100,6 +101,33 @@ export default function AdminUsuariosPage() {
         }
     };
 
+    const toggleAppForFilteredUsers = async (appId: number, active: boolean, appName: string) => {
+        if (!confirm(`¿Seguro que deseas ${active ? "HABILITAR" : "QUITAR"} ${appName} a los ${filteredUsuarios.length} usuarios filtrados?`)) return;
+        
+        setLoading(true);
+        let cambiados = 0;
+        try {
+            for (const u of filteredUsuarios) {
+                const hasApp = u.AppsIds?.includes(appId) || false;
+                if (hasApp === active) continue; // Si ya lo tiene, se salta para optimizar
+
+                await fetch("/api/admin/permissions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ idCuentaPortal: u.IdCuentaPortal, idAplicacion: appId, activo: active }),
+                });
+                cambiados++;
+            }
+            showToast(`Operación masiva completada: ${cambiados} usuarios actualizados.`);
+            await loadData();
+        } catch {
+            showToast("Error parcial en la asignación masiva.", "err");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const toggleUserActive = async (u: UsuarioAdmin) => {
         const newState = !u.Activo;
         try {
@@ -147,10 +175,11 @@ export default function AdminUsuariosPage() {
             parsed = JSON.parse(importText);
             if (!Array.isArray(parsed)) throw new Error();
         } catch {
-            return showToast("JSON inválido. Debe ser un arreglo [{nombres, primerApellido, correo, carnet}, ...]", "err");
+            return showToast("JSON inválido.", "err");
         }
+        setLoading(true);
         try {
-            const res = await fetch("/api/admin/import-users", {
+            const res = await fetch("/api/admin/sync-users-bulk", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
@@ -159,39 +188,54 @@ export default function AdminUsuariosPage() {
             const data = await res.json();
             setImportResult(data);
             if (data.ok) {
-                showToast(`Importación: ${data.creados} creados, ${data.omitidos} omitidos`);
+                showToast(`Sincronización Masiva completada: ${data.procesados} cuentas modificadas/creadas`);
                 loadData();
             }
         } catch {
-            showToast("Error de red al importar", "err");
+            showToast("Error de red al sincronizar", "err");
+        } finally {
+            setLoading(false);
         }
     };
 
     const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const text = ev.target?.result as string;
-            // Parsear CSV simple (separador , o ;)
-            const lines = text.split("\n").filter((l) => l.trim());
-            if (lines.length < 2) return showToast("El archivo debe tener encabezado y al menos 1 fila", "err");
-            const sep = lines[0].includes(";") ? ";" : ",";
-            const headers = lines[0].split(sep).map((h) => h.trim().toLowerCase());
-            const users = lines.slice(1).map((line) => {
-                const cols = line.split(sep).map((c) => c.trim());
-                return {
-                    nombres: cols[headers.indexOf("nombres")] || cols[0] || "",
-                    primerApellido: cols[headers.indexOf("primerapellido")] || cols[1] || "",
-                    segundoApellido: cols[headers.indexOf("segundoapellido")] || cols[2] || "",
-                    correo: cols[headers.indexOf("correo")] || cols[3] || "",
-                    carnet: cols[headers.indexOf("carnet")] || cols[4] || "",
-                };
-            });
-            setImportText(JSON.stringify(users, null, 2));
-            showToast(`${users.length} usuarios leídos del archivo. Revisa y presiona Importar.`);
-        };
-        reader.readAsText(file);
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: function (results: any) {
+                const users = results.data.map((row: any) => ({
+                    carnet: row.carnet || row.Carnet || "",
+                    nombre: row.nombre || row.nombre_completo || row.Nombres || row.Nombre || "",
+                    correo: row.correo || row.correo_electronico || row.Correo || "",
+                    es_interno: row.es_interno || row.EsInterno || "SI",
+                    activo: row.activo || row.Activo !== undefined ? row.activo : 1,
+                    // Extras organizativos
+                    cargo: row.cargo || row.Cargo || "",
+                    departamento: row.departamento || row.Departamento || "",
+                    gerencia: row.gerencia || row.Gerencia || "",
+                    subgerencia: row.subgerencia || row.Subgerencia || "",
+                    area: row.area || row.Area || "",
+                    jefeCarnet: row.jefeCarnet || row.jefe_carnet || row.JefeCarnet || "",
+                    jefeNombre: row.jefeNombre || row.jefe_nombre || row.JefeNombre || "",
+                    jefeCorreo: row.jefeCorreo || row.jefe_correo || row.JefeCorreo || "",
+                    telefono: row.telefono || row.Telefono || "",
+                    genero: row.genero || row.Genero || "",
+                    fechaIngreso: row.fechaIngreso || row.fecha_ingreso || row.FechaIngreso || "",
+                    idOrg: row.idOrg || row.id_org || row.IdOrg || "",
+                    orgDepartamento: row.orgDepartamento || row.org_departamento || row.OrgDepartamento || "",
+                    orgGerencia: row.orgGerencia || row.org_gerencia || row.OrgGerencia || ""
+                }));
+                // Filtrar nulos
+                const validUsers = users.filter((u: any) => u.carnet && u.correo);
+                setImportText(JSON.stringify(validUsers, null, 2));
+                showToast(`${validUsers.length} usuarios leídos del CSV. Revisa el código JSON y presiona Sincronizar.`);
+            },
+            error: function (err: any) {
+                showToast("Error leyendo CSV: " + err.message, "err");
+            }
+        });
     };
 
     const handleResetPassword = async () => {
@@ -321,12 +365,27 @@ export default function AdminUsuariosPage() {
                                 <th style={thStyle}>ESTADO</th>
                                 <th style={thStyle}>EMPLEADO / CARNET</th>
                                 <th style={thStyle}>CORREO</th>
-                                {apps.map((app) => (
-                                    <th key={app.IdAplicacion} style={{ ...thStyle, textAlign: "center", minWidth: 80 }}>
-                                        <i className={`fa-solid fa-${app.Icono?.toLowerCase() || "cube"}`} style={{ fontSize: 14, display: "block", marginBottom: 4 }}></i>
-                                        {app.Nombre}
-                                    </th>
-                                ))}
+                                {apps.map((app) => {
+                                    const allHaveApp = filteredUsuarios.length > 0 && filteredUsuarios.every(u => u.AppsIds?.includes(app.IdAplicacion));
+                                    const someHaveApp = filteredUsuarios.some(u => u.AppsIds?.includes(app.IdAplicacion));
+                                    
+                                    return (
+                                        <th key={app.IdAplicacion} style={{ ...thStyle, textAlign: "center", minWidth: 90 }}>
+                                            <i className={`fa-solid fa-${app.Icono?.toLowerCase() || "cube"}`} style={{ fontSize: 14, display: "block", marginBottom: 4 }}></i>
+                                            {app.Nombre}
+                                            <div style={{ marginTop: 6 }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    title={`Marcar/Desmarcar a todos (${filteredUsuarios.length})`}
+                                                    style={{ cursor: "pointer", accentColor: "#0f172a" }}
+                                                    checked={allHaveApp}
+                                                    ref={el => { if (el) el.indeterminate = !allHaveApp && someHaveApp; }}
+                                                    onChange={(e) => toggleAppForFilteredUsers(app.IdAplicacion, e.target.checked, app.Nombre)}
+                                                />
+                                            </div>
+                                        </th>
+                                    );
+                                })}
                                 <th style={{ ...thStyle, textAlign: "center" }}>ACCIONES</th>
                             </tr>
                         </thead>
@@ -383,24 +442,31 @@ export default function AdminUsuariosPage() {
             )}
 
             {activeModal === "importUsers" && (
-                <Modal title="Importar Usuarios Masivamente" onClose={() => setActiveModal("none")}>
+                <Modal title="Sincronizar Panel Central y Satélites" onClose={() => setActiveModal("none")}>
                     <p style={{ fontSize: 13, color: "#64748b", marginBottom: 16 }}>
-                        Sube un archivo <strong>CSV</strong> (columnas: <code>nombres, primerApellido, segundoApellido, correo, carnet</code>) o pega un <strong>JSON</strong> directamente.
+                        Sube la plantilla <strong>CSV</strong>. El origen central procesará el alta y emitirá webhooks asíncronos para actualizar el perfil en los submódulos.
                     </p>
-                    <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleExcelUpload} style={{ marginBottom: 12 }} />
-                    <textarea style={{ ...inputModalStyle, height: 180, fontFamily: "monospace", fontSize: 12 }} placeholder={'[\n  {"nombres":"Juan","primerApellido":"Pérez","correo":"juan@claro.com.ni","carnet":"12345"}\n]'} value={importText} onChange={(e) => setImportText(e.target.value)} />
+                    <input ref={fileRef} type="file" accept=".csv" onChange={handleExcelUpload} style={{ marginBottom: 12, display: "block" }} />
+                    <textarea style={{ ...inputModalStyle, height: 180, fontFamily: "monospace", fontSize: 12 }} placeholder={'[\n  {"carnet":"123","nombre":"Juan"}...\n]'} value={importText} onChange={(e) => setImportText(e.target.value)} />
                     {importResult && (
                         <div style={{ marginTop: 12, padding: 16, background: "#f8fafc", borderRadius: 12, fontSize: 13, maxHeight: 200, overflow: "auto" }}>
-                            <strong>Resultado:</strong> {importResult.creados} creados, {importResult.omitidos} omitidos
+                            <strong style={{ display: "block", marginBottom: 8, color: "#0f172a" }}>Resultado: {importResult.procesados} procesados</strong>
                             {importResult.detalle?.map((d: any, i: number) => (
-                                <div key={i} style={{ color: d.ok ? "#059669" : "#DC2626" }}>{d.correo}: {d.message}</div>
+                                <div key={i} style={{ color: d.action === "ERROR" ? "#DC2626" : "#059669", marginBottom: 6, paddingBottom: 6, borderBottom: "1px solid #e2e8f0" }}>
+                                    <div style={{ fontWeight: 600 }}>{d.carnet} ({d.action})</div>
+                                    {d.syncDetails?.length > 0 && d.syncDetails.map((sd: any, idx: number) => (
+                                        <div key={idx} style={{ marginLeft: 16, fontSize: 11, color: sd.ok ? "#64748b" : "#DC2626" }}>
+                                            <i className={`fa-solid ${sd.ok ? "fa-circle-check" : "fa-circle-xmark"}`}></i> {sd.app}: {sd.ok ? "OK" : sd.error}
+                                        </div>
+                                    ))}
+                                </div>
                             ))}
                         </div>
                     )}
                     <div style={modalFooterStyle}>
                         <button style={btnGhostStyle} onClick={() => setActiveModal("none")}>CERRAR</button>
                         <button style={btnActionStyle("#059669")} onClick={handleImport}>
-                            <i className="fa-solid fa-upload"></i> IMPORTAR
+                            <i className="fa-solid fa-cloud-arrow-up"></i> SINCRONIZAR
                         </button>
                     </div>
                 </Modal>
