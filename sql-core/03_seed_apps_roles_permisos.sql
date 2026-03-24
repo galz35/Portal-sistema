@@ -2,7 +2,8 @@ INSERT INTO dbo.AplicacionSistema (Codigo, Nombre, Ruta, Icono, OrdenVisual)
 VALUES
 ('portal', 'Portal', '/portal', 'LayoutDashboard', 1),
 ('vacantes', 'Vacantes', '/app/vacantes', 'BriefcaseBusiness', 2),
-('planer', 'Planer', '/app/planer', 'CalendarRange', 3);
+('planer', 'Planer', '/app/planer', 'CalendarRange', 3),
+('clima', 'Clima', 'http://localhost:5177', 'SunMedium', 4);
 GO
 
 INSERT INTO dbo.Pais (CodigoPais, NombrePais)
@@ -33,7 +34,8 @@ VALUES
 ('vacantes.rh.ver', 'Ver RH Vacantes', 'vacantes', 'Permite entrar a panel RH'),
 ('vacantes.rh.crear', 'Crear vacantes', 'vacantes', 'Permite crear vacantes'),
 ('vacantes.rh.estado', 'Cambiar estado vacante/postulacion', 'vacantes', 'Permite cambiar estados'),
-('planer.ver', 'Ver Planer', 'planer', 'Permite entrar a planer');
+('planer.ver', 'Ver Planer', 'planer', 'Permite entrar a planer'),
+('app.clima', 'Acceso Clima', 'clima', 'Acceso al modulo clima');
 GO
 
 INSERT INTO dbo.RolPermiso (IdRol, IdPermiso)
