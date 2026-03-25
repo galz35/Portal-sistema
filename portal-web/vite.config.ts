@@ -6,6 +6,7 @@ export default defineConfig(({ mode }) => {
   const apiTarget = env.VITE_API_TARGET || "http://localhost:8082";
 
   return {
+    base: env.VITE_BASE_PATH || '/',
     plugins: [react()],
     server: {
       port: 5173,

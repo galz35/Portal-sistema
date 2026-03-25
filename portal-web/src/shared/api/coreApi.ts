@@ -1,4 +1,5 @@
 import { getCsrfTokenFromCookie } from "../security/csrf";
+import { apiUrl } from "../config/runtime";
 export { getCsrfTokenFromCookie };
 
 export type PortalApp = {
@@ -41,7 +42,7 @@ async function parseJson<T>(response: Response): Promise<T | null> {
 }
 
 export async function getSessionState(): Promise<CurrentSessionState | null> {
-  const response = await fetch("/api/auth/session-state", {
+  const response = await fetch(apiUrl("/auth/session-state"), {
     credentials: "include",
   });
 
@@ -53,7 +54,7 @@ export async function getSessionState(): Promise<CurrentSessionState | null> {
 }
 
 export async function getMe(): Promise<CurrentUserMe | null> {
-  const response = await fetch("/api/auth/me", {
+  const response = await fetch(apiUrl("/auth/me"), {
     credentials: "include",
   });
 
@@ -65,7 +66,7 @@ export async function getMe(): Promise<CurrentUserMe | null> {
 }
 
 export async function getApps(): Promise<PortalApp[]> {
-  const response = await fetch("/api/core/apps", {
+  const response = await fetch(apiUrl("/core/apps"), {
     credentials: "include",
   });
 
@@ -82,7 +83,7 @@ export async function getApps(): Promise<PortalApp[]> {
 
 export async function logoutGlobal() {
   const csrf = getCsrfTokenFromCookie();
-  return fetch("/api/auth/logout", {
+  return fetch(apiUrl("/auth/logout"), {
     method: "POST",
     credentials: "include",
     headers: csrf
@@ -94,7 +95,7 @@ export async function logoutGlobal() {
 }
 
 export async function loginEmpleado(payload: LoginEmpleadoRequest) {
-  const response = await fetch("/api/auth/login-empleado", {
+  const response = await fetch(apiUrl("/auth/login-empleado"), {
     method: "POST",
     credentials: "include",
     headers: {

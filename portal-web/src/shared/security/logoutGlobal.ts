@@ -1,8 +1,9 @@
 import { getCsrfTokenFromCookie } from "./csrf";
+import { apiUrl } from "../config/runtime";
 
 export async function logoutGlobal() {
   const csrf = getCsrfTokenFromCookie();
-  await fetch("/api/auth/logout", {
+  await fetch(apiUrl("/auth/logout"), {
     method: "POST",
     credentials: "include",
     headers: csrf

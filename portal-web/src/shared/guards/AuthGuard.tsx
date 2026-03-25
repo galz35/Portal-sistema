@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { appPath } from "../config/runtime";
 
 import { fetchSessionState } from "../security/authSession";
 
@@ -14,7 +15,8 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     void fetchSessionState().then((session) => {
       if (!session.authenticated) {
         const returnUrl = encodeURIComponent(window.location.pathname);
-        window.location.href = `/login-empleado?returnUrl=${returnUrl}`;
+        const loginUrl = appPath("/login-empleado");
+        window.location.href = `${loginUrl}?returnUrl=${returnUrl}`;
         return;
       }
 

@@ -72,7 +72,7 @@
   font-size: 28px;
   font-weight: 700;
   color: #fff;
-  text-transform: lowercase;
+  text-transform: none;
   letter-spacing: 2px;
   margin-bottom: 20px;
   opacity: 0.9;

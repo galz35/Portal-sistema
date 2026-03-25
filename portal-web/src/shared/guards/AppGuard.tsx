@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { appPath } from "../config/runtime";
 
 import { fetchSessionState } from "../security/authSession";
 
@@ -15,12 +16,13 @@ export default function AppGuard({ requiredApp, children }: AppGuardProps) {
     void fetchSessionState().then((session) => {
       if (!session.authenticated) {
         const returnUrl = encodeURIComponent(window.location.pathname);
-        window.location.href = `/login-empleado?returnUrl=${returnUrl}`;
+        const loginUrl = appPath("/login-empleado");
+        window.location.href = `${loginUrl}?returnUrl=${returnUrl}`;
         return;
       }
 
       if (!session.apps.includes(requiredApp)) {
-        window.location.href = "/sin-acceso";
+        window.location.href = appPath("/sin-acceso");
         return;
       }
 

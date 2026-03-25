@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import TarjetaSistema from "../components/TarjetaSistema";
 import PortalShell, { panelStyle } from "../components/PortalShell";
 import { getApps, getMe, logoutGlobal, getCsrfTokenFromCookie, type CurrentUserMe, type PortalApp } from "../../../shared/api/coreApi";
+import { appPath, apiUrl } from "../../../shared/config/runtime";
 
 export default function PortalDashboardPage() {
   const [apps, setApps] = useState<PortalApp[]>([]);
@@ -13,7 +14,8 @@ export default function PortalDashboardPage() {
 
     const logoutListener = async () => {
         await logoutGlobal();
-        window.location.href = "/login-empleado";
+        // Construir la URL de login respetando la subruta (ej: /portal-test/login-empleado)
+        window.location.href = appPath("/login-empleado");
     };
 
     window.addEventListener('portal-logout', logoutListener);
@@ -27,7 +29,7 @@ export default function PortalDashboardPage() {
       console.log("🔐 CSRF Token detected for SSO:", csrf ? "YES" : "NO");
       
       // 1. Obtener ticket de intercambio del backend del portal
-      const response = await fetch('/api/sso/ticket', {
+      const response = await fetch(apiUrl('/sso/ticket'), {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

@@ -1,3 +1,5 @@
+import { appPath } from "../../../shared/config/runtime";
+
 export default function SinAccesoPage() {
   return (
     <main
@@ -30,7 +32,7 @@ export default function SinAccesoPage() {
           La sesion es valida, pero el usuario actual no tiene autorizacion para entrar a este recurso.
         </p>
         <a
-          href="/portal"
+          href={appPath("/portal")}
           style={{
             textDecoration: "none",
             borderRadius: 14,

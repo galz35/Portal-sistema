@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { loginEmpleado } from "../../../shared/api/coreApi";
+import { appPath, apiUrl } from "../../../shared/config/runtime";
 import "./LoginEmpleadoPage.css";
 
 function currentReturnUrl() {
   const params = new URLSearchParams(window.location.search);
-  return params.get("returnUrl") ?? "/portal";
+  return params.get("returnUrl") ?? appPath("/portal");
 }
 
 export default function LoginEmpleadoPage() {
@@ -19,15 +20,16 @@ export default function LoginEmpleadoPage() {
   useEffect(() => {
     const checkExistingSession = async () => {
       const returnUrl = currentReturnUrl();
-      if (returnUrl === "/portal") return; 
+      const portalUrl = appPath("/portal");
+      if (returnUrl === portalUrl) return; 
 
       try {
-        const response = await fetch('/api/auth/session-state', { credentials: "include" });
+        const response = await fetch(apiUrl("/auth/session-state"), { credentials: "include" });
         const state = await response.json();
         
         if (state.authenticated) {
           console.log("🚀 Sesión activa detectada, generando ticket automático...");
-          const ssoRes = await fetch('/api/sso/ticket', { method: 'POST', credentials: "include" });
+          const ssoRes = await fetch(apiUrl("/sso/ticket"), { method: 'POST', credentials: "include" });
           const ssoData = await ssoRes.json();
           
           if (ssoData.ticket) {
@@ -71,7 +73,8 @@ export default function LoginEmpleadoPage() {
       let finalUrl = returnUrl;
       const ticket = (response.data as any)?.ticket;
       
-      if (ticket && returnUrl !== "/portal") {
+      const portalUrl = appPath("/portal");
+      if (ticket && returnUrl !== portalUrl) {
         const urlObj = new URL(returnUrl, window.location.origin);
         urlObj.searchParams.set("token", ticket);
         finalUrl = urlObj.toString();
