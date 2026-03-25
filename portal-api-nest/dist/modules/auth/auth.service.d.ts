@@ -36,6 +36,8 @@ export interface EmployeeNameRecord {
 export declare class AuthService {
     private readonly db;
     private readonly logger;
+    private readonly appRouteOverrides;
+    private normalizeAppRoute;
     constructor(db: DatabaseService);
     findLoginUser(usuario: string): Promise<LoginLookup | null>;
     validarClavePortal(claveHash: string, clavePlana: string): Promise<boolean>;
@@ -75,4 +77,5 @@ export declare class AuthService {
         ok: boolean;
     }>;
     listAllUsers(): Promise<any[]>;
+    syncToSubmodules(userPayload: any): Promise<any[]>;
 }

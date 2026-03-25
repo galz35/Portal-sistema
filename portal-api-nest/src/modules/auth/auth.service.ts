@@ -44,6 +44,34 @@ export interface EmployeeNameRecord {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly appRouteOverrides: Record<string, string> = {
+    portal: process.env.PORTAL_PUBLIC_URL?.trim() || 'http://localhost:5173/',
+    planer: process.env.PLANER_PUBLIC_URL?.trim() || 'http://localhost:5175/',
+    clinica: process.env.CLINICA_PUBLIC_URL?.trim() || '',
+    inventario: process.env.INVENTARIO_PUBLIC_URL?.trim() || '',
+    vacante: process.env.VACANTE_PUBLIC_URL?.trim() || '',
+  };
+
+  private normalizeAppRoute(codigo: string, ruta: string): string {
+    const code = (codigo ?? '').trim().toLowerCase();
+    const currentRoute = (ruta ?? '').trim();
+    const overrideRoute = (this.appRouteOverrides[code] ?? '').trim();
+
+    if (!overrideRoute) {
+      return currentRoute;
+    }
+
+    if (!currentRoute) {
+      return overrideRoute;
+    }
+
+    // Detectar si la ruta en DB es un residuo de localhost y forzar el override si existe
+    if (/^https?:\/\/localhost(?::\d+)?(?:\/|$)/i.test(currentRoute)) {
+      return overrideRoute;
+    }
+
+    return currentRoute;
+  }
 
   constructor(private readonly db: DatabaseService) {}
 
@@ -154,7 +182,7 @@ export class AuthService {
         result.recordset?.map((r: any) => ({
           codigo: (r.Codigo ?? '').trim(),
           nombre: (r.Nombre ?? '').trim(),
-          ruta: (r.Ruta ?? '').trim(),
+          ruta: this.normalizeAppRoute((r.Codigo ?? '').trim(), (r.Ruta ?? '').trim()),
           icono: (r.Icono ?? '').trim(),
           descripcion: '',
         })) ?? []

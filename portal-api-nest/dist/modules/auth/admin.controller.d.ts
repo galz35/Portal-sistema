@@ -71,4 +71,37 @@ export declare class AdminController {
             message: string;
         }[];
     }>;
+    syncUsersBulk(req: FastifyRequest, body: {
+        usuarios: Array<{
+            carnet: string;
+            nombre: string;
+            correo: string;
+            es_interno: string;
+            activo: string | number | boolean;
+            cargo?: string;
+            departamento?: string;
+            gerencia?: string;
+            subgerencia?: string;
+            area?: string;
+            jefeCarnet?: string;
+            jefeNombre?: string;
+            jefeCorreo?: string;
+            telefono?: string;
+            genero?: string;
+            fechaIngreso?: string;
+            idOrg?: string;
+            orgDepartamento?: string;
+            orgGerencia?: string;
+        }>;
+        claveDefecto?: string;
+    }): Promise<{
+        ok: boolean;
+        procesados: number;
+        detalle: {
+            carnet: string;
+            action: string;
+            syncDetails: any;
+            error?: string;
+        }[];
+    }>;
 }

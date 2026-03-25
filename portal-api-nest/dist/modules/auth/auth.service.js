@@ -18,6 +18,28 @@ const crypto_1 = require("crypto");
 let AuthService = AuthService_1 = class AuthService {
     db;
     logger = new common_1.Logger(AuthService_1.name);
+    appRouteOverrides = {
+        portal: process.env.PORTAL_PUBLIC_URL?.trim() || 'http://localhost:5173/',
+        planer: process.env.PLANER_PUBLIC_URL?.trim() || 'http://localhost:5175/',
+        clinica: process.env.CLINICA_PUBLIC_URL?.trim() || '',
+        inventario: process.env.INVENTARIO_PUBLIC_URL?.trim() || '',
+        vacante: process.env.VACANTE_PUBLIC_URL?.trim() || '',
+    };
+    normalizeAppRoute(codigo, ruta) {
+        const code = (codigo ?? '').trim().toLowerCase();
+        const currentRoute = (ruta ?? '').trim();
+        const overrideRoute = (this.appRouteOverrides[code] ?? '').trim();
+        if (!overrideRoute) {
+            return currentRoute;
+        }
+        if (!currentRoute) {
+            return overrideRoute;
+        }
+        if (/^https?:\/\/localhost(?::\d+)?(?:\/|$)/i.test(currentRoute)) {
+            return overrideRoute;
+        }
+        return currentRoute;
+    }
     constructor(db) {
         this.db = db;
     }
@@ -117,7 +139,7 @@ let AuthService = AuthService_1 = class AuthService {
             return (result.recordset?.map((r) => ({
                 codigo: (r.Codigo ?? '').trim(),
                 nombre: (r.Nombre ?? '').trim(),
-                ruta: (r.Ruta ?? '').trim(),
+                ruta: this.normalizeAppRoute((r.Codigo ?? '').trim(), (r.Ruta ?? '').trim()),
                 icono: (r.Icono ?? '').trim(),
                 descripcion: '',
             })) ?? []);
@@ -317,6 +339,33 @@ let AuthService = AuthService_1 = class AuthService {
             this.logger.error(`listAllUsers failed: ${err}`);
             throw err;
         }
+    }
+    async syncToSubmodules(userPayload) {
+        const apps = [
+            { name: 'Planer', url: 'http://localhost:5175/api/auth/sso-sync-user' },
+            { name: 'Clinica', url: 'http://localhost:5176/api/auth/sso-sync-user' },
+            { name: 'Clima', url: 'http://localhost:5178/api/auth/sso-sync-user' },
+        ];
+        const results = [];
+        for (const app of apps) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                await fetch(app.url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userPayload),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                results.push({ app: app.name, ok: true });
+            }
+            catch (err) {
+                this.logger.error(`[SYNC] Error sincronizando hacia ${app.name}: ${err.message}`);
+                results.push({ app: app.name, ok: false, error: err.message });
+            }
+        }
+        return results;
     }
 };
 exports.AuthService = AuthService;

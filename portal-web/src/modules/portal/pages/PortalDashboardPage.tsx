@@ -23,10 +23,38 @@ export default function PortalDashboardPage() {
   }, []);
 
   const handleLaunchApp = async (app: PortalApp) => {
+    // Patrón "Open then Navigate": Abrimos la ventana inmediatamente para evitar que el navegador bloquee el popup
+    // por ser disparado desde un hilo asíncrono (tras el fetch del ticket).
+    const popup = window.open('about:blank', '_blank');
+
+    const navigateToTarget = (targetUrl: string) => {
+      if (popup && !popup.closed) {
+        popup.location.replace(targetUrl);
+        popup.focus();
+        return;
+      }
+      // Fallback si la ventana se cerró o no abrió
+      window.location.href = targetUrl;
+    };
+
     try {
       console.log(`🚀 Iniciando lanzamiento de: ${app.nombre}`);
       const csrf = getCsrfTokenFromCookie();
       console.log("🔐 CSRF Token detected for SSO:", csrf ? "YES" : "NO");
+
+      if (popup && !popup.closed) {
+        popup.document.title = `Abriendo ${app.nombre}...`;
+        popup.document.body.innerHTML = `
+          <div style="font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f8fafc; color: #0f172a;">
+            <div style="text-align: center;">
+              <div style="border: 4px solid #f3f3f3; border-top: 4px solid #DA291C; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 16px;"></div>
+              <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+              <h2 style="margin: 0; font-size: 18px;">Conectando con ${app.nombre}</h2>
+              <p style="color: #64748b; font-size: 14px; margin-top: 8px;">Validando acceso seguro...</p>
+            </div>
+          </div>
+        `;
+      }
       
       // 1. Obtener ticket de intercambio del backend del portal
       const response = await fetch(apiUrl('/sso/ticket'), {
@@ -51,15 +79,15 @@ export default function PortalDashboardPage() {
         const finalUrl = `${app.ruta}${ssoPath}?token=${encodeURIComponent(data.ticket)}`;
         
         console.log(`🎯 Redirigiendo con ticket a: ${app.nombre}`);
-        window.open(finalUrl, '_blank');
+        navigateToTarget(finalUrl);
       } else {
         console.warn(`⚠️ No se recibió ticket SSO para ${app.nombre}. Usando ruta directa.`);
-        window.open(app.ruta, '_blank');
+        navigateToTarget(app.ruta);
       }
     } catch (error) {
       console.error('❌ Error crítico en handshake SSO:', error);
       // Fallback seguro a la ruta base
-      window.open(app.ruta, '_blank');
+      navigateToTarget(app.ruta);
     }
   };
 

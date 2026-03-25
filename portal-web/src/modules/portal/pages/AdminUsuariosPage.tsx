@@ -19,6 +19,7 @@ type App = {
     IdAplicacion: number;
     Codigo: string;
     Nombre: string;
+    Ruta?: string;
     Icono: string;
 };
 
@@ -499,7 +500,7 @@ export default function AdminUsuariosPage() {
                                     <code style={{ fontSize: 11, color: "#94a3b8" }}>{a.Codigo}</code>
                                 </div>
                                 <div style={{ display: "flex", gap: 6 }}>
-                                    <button style={btnSmallStyle} onClick={() => { setEditingAppId(a.IdAplicacion); setNewApp({ codigo: a.Codigo, nombre: a.Nombre, ruta: "", icono: a.Icono, descripcion: "" }); }}>
+                                    <button style={btnSmallStyle} onClick={() => { setEditingAppId(a.IdAplicacion); setNewApp({ codigo: a.Codigo, nombre: a.Nombre, ruta: a.Ruta || "", icono: a.Icono, descripcion: "" }); }}>
                                         <i className="fa-solid fa-pen"></i>
                                     </button>
                                     <button style={{ ...btnSmallStyle, color: "#DC2626" }} onClick={() => handleDeleteApp(a.IdAplicacion, a.Nombre)}>
