@@ -6,6 +6,9 @@ import PerfilBasePage from "../modules/portal/pages/PerfilBasePage";
 import SinAccesoPage from "../modules/portal/pages/SinAccesoPage";
 import AdminUsuariosPage from "../modules/portal/pages/AdminUsuariosPage";
 import AuthGuard from "../shared/guards/AuthGuard";
+import { APP_BASE } from "../shared/config/runtime";
+
+const basename = APP_BASE === "/" ? undefined : APP_BASE.replace(/\/$/, "");
 
 export const router = createBrowserRouter([
   { path: "/", element: <AuthGuard><PortalDashboardPage /></AuthGuard> },
@@ -18,4 +21,4 @@ export const router = createBrowserRouter([
   { path: "/portal/seguridad", element: <AuthGuard><SinAccesoPage /></AuthGuard> },
   { path: "/portal/notificaciones", element: <AuthGuard><SinAccesoPage /></AuthGuard> },
   { path: "/sin-acceso", element: <SinAccesoPage /> },
-]);
+], basename ? { basename } : undefined);

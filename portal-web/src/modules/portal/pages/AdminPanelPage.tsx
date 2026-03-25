@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+
 interface User {
     IdCuentaPortal: number;
     Usuario: string;
@@ -26,8 +28,8 @@ export default function AdminPanel() {
         const loadData = async () => {
             try {
                 const [uRes, aRes] = await Promise.all([
-                    fetch('/api/admin/users'),
-                    fetch('/api/admin/apps')
+                    fetch(`${API_BASE_URL}/admin/users`),
+                    fetch(`${API_BASE_URL}/admin/apps`)
                 ]);
                 const uData = await uRes.json();
                 const aData = await aRes.json();
@@ -43,7 +45,7 @@ export default function AdminPanel() {
     }, []);
 
     const togglePermission = async (userId: number, appId: number, active: boolean) => {
-        await fetch('/api/admin/permissions', {
+        await fetch(`${API_BASE_URL}/admin/permissions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ idCuentaPortal: userId, idAplicacion: appId, activo: active })

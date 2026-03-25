@@ -2,6 +2,8 @@ import React, { useState, useEffect, CSSProperties } from 'react';
 import { getMe, getCsrfTokenFromCookie } from "../../../shared/api/coreApi";
 import PortalShell, { panelStyle } from "../components/PortalShell";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+
 type MeProfile = {
   idCuentaPortal?: number;
   nombre?: string;
@@ -35,7 +37,7 @@ export default function PerfilBasePage() {
     console.log("🔐 CSRF Token detected:", csrf ? "YES (present)" : "NO (missing)");
 
     try {
-      const res = await fetch('/api/auth/change-password', {
+      const res = await fetch(`${API_BASE_URL}/auth/change-password`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

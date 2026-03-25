@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { appPath } from "../../../shared/config/runtime";
 
 const panelStyle: CSSProperties = {
   minHeight: "100vh",
@@ -36,7 +37,7 @@ export default function LoginPage() {
           Usa este acceso para flujos generales. Para colaboradores internos, el flujo recomendado es login empleado.
         </p>
         <a
-          href="/login-empleado"
+          href={appPath("/login-empleado")}
           style={{
             textDecoration: "none",
             textAlign: "center",
