@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, type CSSProperties } from "react";
 import PortalShell, { panelStyle } from "../components/PortalShell";
 import Papa from "papaparse";
+import { apiUrl } from "../../../shared/config/runtime";
 
 type UsuarioAdmin = {
     IdCuentaPortal: number;
@@ -62,9 +63,9 @@ export default function AdminUsuariosPage() {
         setLoading(true);
         try {
             const [meRes, uRes, aRes] = await Promise.all([
-                fetch("/api/auth/me", { credentials: "include" }),
-                fetch("/api/admin/users", { credentials: "include" }),
-                fetch("/api/admin/apps", { credentials: "include" }),
+                fetch(apiUrl("/auth/me"), { credentials: "include" }),
+                fetch(apiUrl("/admin/users"), { credentials: "include" }),
+                fetch(apiUrl("/admin/apps"), { credentials: "include" }),
             ]);
             setMe(await meRes.json());
             const uData = await uRes.json();
@@ -80,7 +81,7 @@ export default function AdminUsuariosPage() {
 
     const togglePermission = async (userId: number, appId: number, active: boolean) => {
         try {
-            const res = await fetch("/api/admin/permissions", {
+            const res = await fetch(apiUrl("/admin/permissions"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
@@ -112,7 +113,7 @@ export default function AdminUsuariosPage() {
                 const hasApp = u.AppsIds?.includes(appId) || false;
                 if (hasApp === active) continue; // Si ya lo tiene, se salta para optimizar
 
-                await fetch("/api/admin/permissions", {
+                await fetch(apiUrl("/admin/permissions"), {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     credentials: "include",
@@ -132,7 +133,7 @@ export default function AdminUsuariosPage() {
     const toggleUserActive = async (u: UsuarioAdmin) => {
         const newState = !u.Activo;
         try {
-            const res = await fetch("/api/admin/toggle-user", {
+            const res = await fetch(apiUrl("/admin/toggle-user"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
@@ -150,7 +151,7 @@ export default function AdminUsuariosPage() {
     const handleCreateUser = async () => {
         if (!newUser.nombres || !newUser.primerApellido || !newUser.correo || !newUser.carnet) return showToast("Completa todos los campos obligatorios", "err");
         try {
-            const res = await fetch("/api/admin/create-user", {
+            const res = await fetch(apiUrl("/admin/create-user"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
@@ -180,7 +181,7 @@ export default function AdminUsuariosPage() {
         }
         setLoading(true);
         try {
-            const res = await fetch("/api/admin/sync-users-bulk", {
+            const res = await fetch(apiUrl("/admin/sync-users-bulk"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
@@ -242,7 +243,7 @@ export default function AdminUsuariosPage() {
     const handleResetPassword = async () => {
         if (!resetTarget) return;
         try {
-            const res = await fetch("/api/admin/reset-password", {
+            const res = await fetch(apiUrl("/admin/reset-password"), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
@@ -261,7 +262,7 @@ export default function AdminUsuariosPage() {
     const handleSaveApp = async () => {
         if (!newApp.codigo || !newApp.nombre) return showToast("Completa código y nombre", "err");
         try {
-            const url = editingAppId ? `/api/admin/apps/${editingAppId}` : "/api/admin/apps";
+            const url = editingAppId ? apiUrl(`/admin/apps/${editingAppId}`) : apiUrl("/admin/apps");
             const method = editingAppId ? "PUT" : "POST";
             const res = await fetch(url, {
                 method,
@@ -283,7 +284,7 @@ export default function AdminUsuariosPage() {
     const handleDeleteApp = async (id: number, nombre: string) => {
         if (!confirm(`¿Desactivar la aplicación "${nombre}"?`)) return;
         try {
-            await fetch(`/api/admin/apps/${id}`, { method: "DELETE", credentials: "include" });
+            await fetch(apiUrl(`/admin/apps/${id}`), { method: "DELETE", credentials: "include" });
             loadData();
             showToast(`${nombre} desactivada`);
         } catch {
@@ -310,7 +311,7 @@ export default function AdminUsuariosPage() {
             eyebrow="Consola Central"
             title="Gestión de Accesos"
             description="Administra usuarios, contraseñas y permisos de acceso a los sistemas Claro."
-            user={{ nombre: me?.nombre || "Admin", rol: me?.usuario || "admin", carnet: me?.carnet }}
+            user={{ nombre: me?.nombre || "Cargando...", rol: me?.usuario || "", carnet: me?.carnet || "" }}
         >
             {/* Toast */}
             {toast && (
