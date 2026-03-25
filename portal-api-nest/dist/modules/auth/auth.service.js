@@ -19,12 +19,30 @@ let AuthService = AuthService_1 = class AuthService {
     db;
     logger = new common_1.Logger(AuthService_1.name);
     appRouteOverrides = {
-        portal: process.env.PORTAL_PUBLIC_URL?.trim() || 'http://localhost:5173/',
-        planer: process.env.PLANER_PUBLIC_URL?.trim() || 'http://localhost:5175/',
+        portal: process.env.PORTAL_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal-test/',
+        planer: process.env.PLANER_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/planer/',
+        clima: process.env.CLIMA_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/clima/',
         clinica: process.env.CLINICA_PUBLIC_URL?.trim() || '',
         inventario: process.env.INVENTARIO_PUBLIC_URL?.trim() || '',
         vacante: process.env.VACANTE_PUBLIC_URL?.trim() || '',
     };
+    submoduleSyncTargets = [
+        {
+            name: 'Planer',
+            url: process.env.PLANER_SYNC_URL?.trim() || 'http://127.0.0.1:3021/Planer_api/auth/sso-sync-user',
+        },
+        {
+            name: 'Clinica',
+            url: process.env.CLINICA_SYNC_URL?.trim() || '',
+        },
+        {
+            name: 'Clima',
+            url: process.env.CLIMA_SYNC_URL?.trim() || '',
+        },
+    ];
+    constructor(db) {
+        this.db = db;
+    }
     normalizeAppRoute(codigo, ruta) {
         const code = (codigo ?? '').trim().toLowerCase();
         const currentRoute = (ruta ?? '').trim();
@@ -39,9 +57,6 @@ let AuthService = AuthService_1 = class AuthService {
             return overrideRoute;
         }
         return currentRoute;
-    }
-    constructor(db) {
-        this.db = db;
     }
     async findLoginUser(usuario) {
         try {
@@ -341,13 +356,13 @@ let AuthService = AuthService_1 = class AuthService {
         }
     }
     async syncToSubmodules(userPayload) {
-        const apps = [
-            { name: 'Planer', url: 'http://localhost:5175/api/auth/sso-sync-user' },
-            { name: 'Clinica', url: 'http://localhost:5176/api/auth/sso-sync-user' },
-            { name: 'Clima', url: 'http://localhost:5178/api/auth/sso-sync-user' },
-        ];
+        const apps = this.submoduleSyncTargets;
         const results = [];
         for (const app of apps) {
+            if (!app.url) {
+                results.push({ app: app.name, ok: true, skipped: true });
+                continue;
+            }
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);

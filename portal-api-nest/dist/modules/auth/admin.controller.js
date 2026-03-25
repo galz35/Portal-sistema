@@ -116,6 +116,13 @@ let AdminController = AdminController_1 = class AdminController {
                 .query('INSERT INTO UsuarioAplicacion (IdCuentaPortal, IdAplicacion, Activo, FechaCreacion) VALUES (@u, @a, 1, GETDATE())');
         }
         this.logger.log(`✅ Usuario creado: ${correo} (ID: ${idCuenta})`);
+        await this.authService.syncToSubmodules({
+            carnet: body.carnet.trim(),
+            nombre: (body.nombres + ' ' + body.primerApellido).trim(),
+            correo: correo,
+            activo: true,
+            esInterno: true
+        });
         return { ok: true, idCuentaPortal: idCuenta, message: `Usuario ${correo} creado exitosamente con clave por defecto.` };
     }
     async importUsers(req, body) {
@@ -159,6 +166,13 @@ let AdminController = AdminController_1 = class AdminController {
                         .query('INSERT INTO UsuarioAplicacion (IdCuentaPortal, IdAplicacion, Activo, FechaCreacion) VALUES (@u, @a, 1, GETDATE())');
                 }
                 results.push({ correo, ok: true, message: 'Creado' });
+                await this.authService.syncToSubmodules({
+                    carnet: u.carnet.trim(),
+                    nombre: (u.nombres + ' ' + u.primerApellido).trim(),
+                    correo: correo,
+                    activo: true,
+                    esInterno: true
+                });
             }
             catch (err) {
                 results.push({ correo: u.correo, ok: false, message: String(err) });

@@ -141,6 +141,16 @@ export class AdminController {
     }
 
     this.logger.log(`✅ Usuario creado: ${correo} (ID: ${idCuenta})`);
+
+    // Sincronizar hacia submódulos inmediatamente
+    await this.authService.syncToSubmodules({
+      carnet: body.carnet.trim(),
+      nombre: (body.nombres + ' ' + body.primerApellido).trim(),
+      correo: correo,
+      activo: true,
+      esInterno: true
+    });
+
     return { ok: true, idCuentaPortal: idCuenta, message: `Usuario ${correo} creado exitosamente con clave por defecto.` };
   }
 
@@ -203,6 +213,15 @@ export class AdminController {
         }
 
         results.push({ correo, ok: true, message: 'Creado' });
+
+        // Sincronizar hacia submódulos
+        await this.authService.syncToSubmodules({
+          carnet: u.carnet.trim(),
+          nombre: (u.nombres + ' ' + u.primerApellido).trim(),
+          correo: correo,
+          activo: true,
+          esInterno: true
+        });
       } catch (err) {
         results.push({ correo: u.correo, ok: false, message: String(err) });
       }

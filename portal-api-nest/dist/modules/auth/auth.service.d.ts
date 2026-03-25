@@ -37,8 +37,9 @@ export declare class AuthService {
     private readonly db;
     private readonly logger;
     private readonly appRouteOverrides;
-    private normalizeAppRoute;
+    private readonly submoduleSyncTargets;
     constructor(db: DatabaseService);
+    private normalizeAppRoute;
     findLoginUser(usuario: string): Promise<LoginLookup | null>;
     validarClavePortal(claveHash: string, clavePlana: string): Promise<boolean>;
     getUser(idCuentaPortal: number): Promise<AuthenticatedUser | null>;
