@@ -23,6 +23,12 @@ export default function PortalDashboardPage() {
   }, []);
 
   const handleLaunchApp = async (app: PortalApp) => {
+    if (user?.mustChangePassword) {
+      window.alert('Debes cambiar tu contraseña temporal antes de ingresar a otras aplicaciones.');
+      window.location.href = `${appPath('/perfil')}?forcePasswordChange=1`;
+      return;
+    }
+
     const popup = window.open('about:blank', '_blank');
 
     const navigateToTarget = (targetUrl: string) => {
@@ -57,11 +63,20 @@ export default function PortalDashboardPage() {
         body: JSON.stringify({})
       });
 
+      const data = await response.json().catch(() => null);
+
       if (!response.ok) {
+        if (response.status === 403) {
+          if (popup && !popup.closed) {
+            popup.close();
+          }
+          window.alert(data?.message || 'Debes cambiar tu contraseña temporal antes de ingresar a otras aplicaciones.');
+          window.location.href = `${appPath('/perfil')}?forcePasswordChange=1`;
+          return;
+        }
+
         throw new Error(`SSO Ticket request failed with status: ${response.status}`);
       }
-
-      const data = await response.json();
 
       if (data.ticket) {
         // 2. Construir URL de destino con el ticket

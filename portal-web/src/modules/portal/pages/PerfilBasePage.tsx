@@ -1,6 +1,7 @@
 import React, { useState, useEffect, CSSProperties } from 'react';
 import { getMe, getCsrfTokenFromCookie } from "../../../shared/api/coreApi";
 import PortalShell, { panelStyle } from "../components/PortalShell";
+import { apiUrl, appPath } from "../../../shared/config/runtime";
 
 type MeProfile = {
   idCuentaPortal?: number;
@@ -9,9 +10,11 @@ type MeProfile = {
   correo?: string;
   carnet?: string;
   esInterno?: boolean;
+  mustChangePassword?: boolean;
 };
 
 export default function PerfilBasePage() {
+  const forceFromUrl = new URLSearchParams(window.location.search).get("forcePasswordChange") === "1";
   const [profile, setProfile] = useState<MeProfile | null>(null);
   const [showPassModal, setShowPassModal] = useState(false);
   const [newPass, setNewPass] = useState("");
@@ -19,25 +22,56 @@ export default function PerfilBasePage() {
   const [showPass, setShowPass] = useState(false);
   const [updating, setUpdating] = useState(false);
 
+  const mustChangePassword = !!profile?.mustChangePassword;
+
   useEffect(() => {
-    void getMe().then((data) => setProfile(data));
-  }, []);
+    let cancelled = false;
+
+    void getMe().then((data) => {
+      if (cancelled) return;
+      setProfile(data);
+      if (data?.mustChangePassword || forceFromUrl) {
+        setShowPassModal(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [forceFromUrl]);
+
+  useEffect(() => {
+    if (mustChangePassword && !showPassModal) {
+      setShowPassModal(true);
+    }
+  }, [mustChangePassword, showPassModal]);
+
+  const closePasswordModal = () => {
+    if (mustChangePassword) {
+      return;
+    }
+
+    setShowPassModal(false);
+    setNewPass("");
+    setConfirmPass("");
+    setShowPass(false);
+  };
 
   const handleChangePassword = async () => {
     if (!newPass || !confirmPass) return alert("Por favor ingresa y confirma tu nueva contraseña");
     if (newPass !== confirmPass) return alert("Las contraseñas no coinciden, por favor verifica.");
-    
+
     const confirmed = window.confirm("¿Estás completamente seguro de que deseas cambiar tu contraseña?");
     if (!confirmed) return;
 
     setUpdating(true);
     const csrf = getCsrfTokenFromCookie();
-    console.log("🔐 CSRF Token detected:", csrf ? "YES (present)" : "NO (missing)");
+    const wasForced = mustChangePassword || forceFromUrl;
 
     try {
-      const res = await fetch('/api/auth/change-password', {
+      const res = await fetch(apiUrl("/auth/change-password"), {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...(csrf ? { 'X-CSRF-Token': csrf } : {})
         },
@@ -45,9 +79,22 @@ export default function PerfilBasePage() {
         credentials: "include"
       });
       if (res.ok) {
-        alert("¡Éxito! Tu contraseña ha sido actualizada.");
+        alert(wasForced ? "Contraseña actualizada. Tu acceso ya quedó habilitado." : "¡Éxito! Tu contraseña ha sido actualizada.");
         setNewPass("");
-        setShowPassModal(false);
+        setConfirmPass("");
+        setShowPass(false);
+
+        const refreshed = await getMe();
+        setProfile(refreshed);
+        const stillMustChange = !!refreshed?.mustChangePassword;
+        setShowPassModal(stillMustChange);
+
+        if (!stillMustChange) {
+          window.history.replaceState({}, "", appPath("/perfil"));
+          if (wasForced) {
+            window.location.href = appPath("/");
+          }
+        }
       } else {
         const errorData = await res.json().catch(() => ({}));
         alert(errorData.message || "Error al actualizar la contraseña.");
@@ -61,12 +108,27 @@ export default function PerfilBasePage() {
 
   return (
     <PortalShell
-      eyebrow="Configuración"
+      eyebrow={mustChangePassword ? "Acción Requerida" : "Configuración"}
       title="Mi Perfil"
-      description=""
+      description={mustChangePassword ? "Tu cuenta tiene una contraseña temporal. Debes actualizarla antes de usar el portal y abrir otras aplicaciones." : ""}
       user={{ nombre: profile?.nombre || "Cargando...", rol: profile?.usuario || "Empleado", carnet: profile?.carnet }}
     >
       <div style={profileGridStyle}>
+        {mustChangePassword && (
+          <section style={{ ...panelStyle, border: "1px solid #fdba74", background: "#fff7ed" }}>
+            <span style={{ display: "inline-block", fontSize: 11, fontWeight: 900, letterSpacing: "1.5px", color: "#c2410c", textTransform: "uppercase", marginBottom: 12 }}>
+              Seguridad Obligatoria
+            </span>
+            <h3 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#7c2d12" }}>Debes cambiar tu contraseña temporal</h3>
+            <p style={{ margin: "12px 0 20px", color: "#9a3412", lineHeight: 1.6, maxWidth: 720 }}>
+              Tu cuenta fue habilitada con una clave provisional. Hasta que la actualices, el portal bloqueará el acceso a otras aplicaciones.
+            </p>
+            <button style={primaryActionButtonStyle} onClick={() => setShowPassModal(true)}>
+              Cambiar contraseña ahora
+            </button>
+          </section>
+        )}
+
         <section style={panelStyle}>
           <div style={profileHeaderStyle}>
              <div style={bigAvatarStyle}>{profile?.nombre?.slice(0, 2).toUpperCase() || "US"}</div>
@@ -88,17 +150,23 @@ export default function PerfilBasePage() {
 
         <section style={{ ...panelStyle, background: "#f8fafc" }}>
            <h3 style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 900 }}>Seguridad de la Cuenta</h3>
-           <p style={{ margin: "0 0 24px", color: "#64748b", fontSize: 14 }}>Mantén tu cuenta protegida y revisa los accesos recientes.</p>
+           <p style={{ margin: "0 0 24px", color: "#64748b", fontSize: 14 }}>
+             {mustChangePassword
+               ? "Tu contraseña temporal debe cambiarse antes de continuar."
+               : "Mantén tu cuenta protegida y revisa los accesos recientes."}
+           </p>
            <div style={{ display: "flex", gap: 16 }}>
-              <button 
-                style={primaryActionButtonStyle} 
+              <button
+                style={primaryActionButtonStyle}
                 onClick={() => setShowPassModal(true)}
               >
-                Cambiar Contraseña
+                {mustChangePassword ? "Actualizar contraseña" : "Cambiar Contraseña"}
               </button>
-              <button style={secondaryButtonStyle} onClick={() => alert("Próximamente: Historial de sesiones activas")}>
-                Historial de Accesos
-              </button>
+              {!mustChangePassword && (
+                <button style={secondaryButtonStyle} onClick={() => alert("Próximamente: Historial de sesiones activas")}>
+                  Historial de Accesos
+                </button>
+              )}
            </div>
         </section>
       </div>
@@ -112,22 +180,22 @@ export default function PerfilBasePage() {
                 </div>
                 <h3 style={{ margin: "16px 0 8px", fontSize: 22, fontWeight: 900, color: "#0f172a" }}>Seguridad de Acceso</h3>
                 <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
-                    Ingresa tu nueva contraseña para el Claro Portal. 
+                    Ingresa tu nueva contraseña para el Claro Portal.
                     Usamos <strong>Argon2id</strong> para proteger tus datos.
                 </p>
             </header>
 
             <div style={{ position: 'relative', marginBottom: 16 }}>
                 <i className="fa-solid fa-key" style={inputIconStyle}></i>
-                <input 
-                  type={showPass ? "text" : "password"} 
-                  placeholder="Nueva contraseña robusta..." 
+                <input
+                  type={showPass ? "text" : "password"}
+                  placeholder="Nueva contraseña robusta..."
                   style={{...modalInputStyle, paddingRight: 48}}
                   value={newPass}
                   onChange={(e) => setNewPass(e.target.value)}
                   autoFocus
                 />
-                <button 
+                <button
                   onClick={() => setShowPass(!showPass)}
                   style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', outline: 'none' }}
                 >
@@ -137,19 +205,27 @@ export default function PerfilBasePage() {
 
             <div style={{ position: 'relative' }}>
                 <i className="fa-solid fa-lock" style={inputIconStyle}></i>
-                <input 
-                  type={showPass ? "text" : "password"} 
-                  placeholder="Confirma la nueva contraseña..." 
+                <input
+                  type={showPass ? "text" : "password"}
+                  placeholder="Confirma la nueva contraseña..."
                   style={{...modalInputStyle, paddingRight: 48}}
                   value={confirmPass}
                   onChange={(e) => setConfirmPass(e.target.value)}
                 />
             </div>
 
+            {mustChangePassword && (
+              <div style={{ marginTop: 18, padding: '12px 14px', background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 14, color: '#9a3412', fontSize: 13, lineHeight: 1.5 }}>
+                Debes actualizar tu contraseña antes de usar el portal o abrir otras aplicaciones.
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: 12, justifyContent: "stretch", marginTop: 32 }}>
-              <button style={{ ...secondaryButtonStyle, flex: 1 }} onClick={() => { setShowPassModal(false); setNewPass(""); setConfirmPass(""); setShowPass(false); }}>CANCELAR</button>
-              <button 
-                style={{ ...primaryActionButtonStyle, flex: 1.5, boxShadow: "0 10px 20px -5px rgba(218, 41, 28, 0.4)" }} 
+              {!mustChangePassword && (
+                <button style={{ ...secondaryButtonStyle, flex: 1 }} onClick={closePasswordModal}>CANCELAR</button>
+              )}
+              <button
+                style={{ ...primaryActionButtonStyle, flex: mustChangePassword ? 1 : 1.5, boxShadow: "0 10px 20px -5px rgba(218, 41, 28, 0.4)" }}
                 onClick={handleChangePassword}
                 disabled={updating}
               >

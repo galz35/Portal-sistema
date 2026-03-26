@@ -17,6 +17,10 @@ function normalizePath(value: string) {
   }
 }
 
+function forcedChangeUrl() {
+  return `${appPath("/perfil")}?forcePasswordChange=1`;
+}
+
 export default function LoginEmpleadoPage() {
   const [usuario, setUsuario] = useState("");
   const [clave, setClave] = useState("");
@@ -36,6 +40,11 @@ export default function LoginEmpleadoPage() {
         const state = await response.json();
 
         if (state.authenticated) {
+          if (state.mustChangePassword) {
+            window.location.href = forcedChangeUrl();
+            return;
+          }
+
           console.log("🚀 Sesión activa detectada, generando ticket automático...");
           const ssoRes = await fetch(apiUrl("/sso/ticket"), { method: "POST", credentials: "include" });
           const ssoData = await ssoRes.json();
@@ -76,6 +85,12 @@ export default function LoginEmpleadoPage() {
         if (response.status === 403) msg = "Cuenta bloqueada o sin permisos";
 
         throw new Error(msg);
+      }
+
+      const mustChangePassword = !!(response.data as any)?.mustChangePassword;
+      if (mustChangePassword) {
+        window.location.href = forcedChangeUrl();
+        return;
       }
 
       let finalUrl = returnUrl;

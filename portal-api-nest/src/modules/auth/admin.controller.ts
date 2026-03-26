@@ -66,7 +66,7 @@ export class AdminController {
   @Post('reset-password')
   async resetPassword(@Req() req: FastifyRequest, @Body() body: any) {
     await this.checkAdmin(req);
-    return this.authService.setPassword(body.idCuentaPortal, body.nuevaClave);
+    return this.authService.setPassword(body.idCuentaPortal, body.nuevaClave, true);
   }
 
   // ── Activar / Desactivar usuario ──
@@ -96,6 +96,7 @@ export class AdminController {
     const correo = body.correo.trim().toLowerCase();
     const usuario = body.usuario?.trim() || correo.split('@')[0];
     const clave = body.clave || '123456';
+    const mustChangePassword = !body.clave || clave === '123456';
     const hash = await argon2.hash(clave);
 
     // Verificar duplicado
@@ -124,10 +125,11 @@ export class AdminController {
       .input('correo', correo)
       .input('carnet', body.carnet.trim())
       .input('hash', hash)
+      .input('mustChangePassword', mustChangePassword ? 1 : 0)
       .query(`
-        INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, FechaCreacion)
+        INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, DebeCambiarClave, FechaCreacion)
         OUTPUT INSERTED.IdCuentaPortal
-        VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, GETDATE())
+        VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, @mustChangePassword, GETDATE())
       `);
     const idCuenta = rCuenta.recordset[0].IdCuentaPortal;
 
@@ -141,16 +143,6 @@ export class AdminController {
     }
 
     this.logger.log(`✅ Usuario creado: ${correo} (ID: ${idCuenta})`);
-
-    // Sincronizar hacia submódulos inmediatamente
-    await this.authService.syncToSubmodules({
-      carnet: body.carnet.trim(),
-      nombre: (body.nombres + ' ' + body.primerApellido).trim(),
-      correo: correo,
-      activo: true,
-      esInterno: true
-    });
-
     return { ok: true, idCuentaPortal: idCuenta, message: `Usuario ${correo} creado exitosamente con clave por defecto.` };
   }
 
@@ -199,9 +191,10 @@ export class AdminController {
           .input('correo', correo)
           .input('carnet', u.carnet.trim())
           .input('hash', hash)
+          .input('mustChangePassword', 1)
           .query(`
-            INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, FechaCreacion)
-            OUTPUT INSERTED.IdCuentaPortal VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, GETDATE())
+            INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, DebeCambiarClave, FechaCreacion)
+            OUTPUT INSERTED.IdCuentaPortal VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, @mustChangePassword, GETDATE())
           `);
         const idCuenta = rCuenta.recordset[0].IdCuentaPortal;
 
@@ -213,15 +206,6 @@ export class AdminController {
         }
 
         results.push({ correo, ok: true, message: 'Creado' });
-
-        // Sincronizar hacia submódulos
-        await this.authService.syncToSubmodules({
-          carnet: u.carnet.trim(),
-          nombre: (u.nombres + ' ' + u.primerApellido).trim(),
-          correo: correo,
-          activo: true,
-          esInterno: true
-        });
       } catch (err) {
         results.push({ correo: u.correo, ok: false, message: String(err) });
       }
@@ -323,9 +307,10 @@ export class AdminController {
             .input('hash', hash)
             .input('activo', activoVal)
             .input('esInterno', esInterno)
+            .input('mustChangePassword', 1)
             .query(`
-              INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, FechaCreacion)
-              OUTPUT INSERTED.IdCuentaPortal VALUES (@idPersona, @usuario, @correo, @carnet, @hash, @activo, 0, @esInterno, GETDATE())
+              INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, DebeCambiarClave, FechaCreacion)
+              OUTPUT INSERTED.IdCuentaPortal VALUES (@idPersona, @usuario, @correo, @carnet, @hash, @activo, 0, @esInterno, @mustChangePassword, GETDATE())
             `);
           idCuenta = rCuenta.recordset[0].IdCuentaPortal;
 

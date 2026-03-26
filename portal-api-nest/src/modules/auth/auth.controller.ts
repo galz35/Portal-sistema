@@ -101,7 +101,7 @@ export class AuthController {
 
       // Si hay returnUrl, generamos un ticket SSO para facilitar el login directo
       let ticket: string | undefined;
-      if (body.returnUrl) {
+      if (body.returnUrl && !user.mustChangePassword) {
         const fullUser = await this.authService.getUser(user.idCuentaPortal);
         if (fullUser) {
           const payload = {
@@ -124,6 +124,7 @@ export class AuthController {
         ok: true,
         usuario: user.usuario,
         nombre: user.nombre,
+        mustChangePassword: user.mustChangePassword,
         ticket, // Enviamos el ticket si se generó
       });
     } catch (err: any) {
@@ -148,10 +149,13 @@ export class AuthController {
       return reply.status(HttpStatus.OK).send({ authenticated: false });
     }
 
+    const mustChangePassword = await this.authService.getMustChangePassword(estado.idCuentaPortal);
+
     return reply.status(HttpStatus.OK).send({
       authenticated: true,
       idSesionPortal: estado.idSesionPortal,
       idCuentaPortal: estado.idCuentaPortal,
+      mustChangePassword,
     });
   }
 
@@ -166,7 +170,7 @@ export class AuthController {
     }
 
     // Ejecutamos el cambio con Hashing Argon2
-    await this.authService.setPassword(session.idCuentaPortal, body.nuevaClave);
+    await this.authService.setPassword(session.idCuentaPortal, body.nuevaClave, false);
     
     // Registramos en auditoría el cambio de importancia alta
     const ip = extractClientIp(req) || '0.0.0.0';

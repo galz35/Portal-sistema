@@ -14,6 +14,7 @@ export type CurrentSessionState = {
   authenticated: boolean;
   idSesionPortal?: number | null;
   idCuentaPortal?: number | null;
+  mustChangePassword?: boolean;
 };
 
 export type CurrentUserMe = {
@@ -24,6 +25,7 @@ export type CurrentUserMe = {
   apps?: string[];
   permisos?: string[];
   esInterno?: boolean;
+  mustChangePassword?: boolean;
 };
 
 export type LoginEmpleadoRequest = {
