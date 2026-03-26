@@ -1,5 +1,5 @@
 import { useState, useEffect, type CSSProperties, ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { logoutGlobal } from "../../../shared/api/coreApi";
 import { appPath } from "../../../shared/config/runtime";
 
@@ -39,7 +39,7 @@ const exitLinkStyle: CSSProperties = { display: "flex", alignItems: "center", ga
 const mainContentStyle: CSSProperties = { flex: 1, display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" };
 const topHeaderStyle: CSSProperties = { background: "#fff", height: 90, padding: "0 40px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", flexShrink: 0 };
 const headerLeftStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 24 };
-const hamburgerStyle: CSSProperties = { background: "none", border: "none", fontSize: 20, color: "#1e293b", cursor: "pointer", display: "none" };
+const hamburgerStyle: CSSProperties = { background: "none", border: "none", fontSize: 20, color: "#1e293b", cursor: "pointer", display: "none" }; 
 const headerTextStack: CSSProperties = { display: "grid", gap: 2 };
 const eyebrowStyle: CSSProperties = { fontSize: 11, fontWeight: 900, color: "#DA291C", textTransform: "uppercase", letterSpacing: "1.5px" };
 const titleStyle: CSSProperties = { margin: 0, fontSize: 26, fontWeight: 900, color: "#0f172a", letterSpacing: "-0.5px" };
@@ -61,17 +61,16 @@ type PortalShellProps = {
 };
 
 const MENU_ITEMS = [
-  { label: "Mis Aplicaciones", path: "/portal/dashboard", icon: "fa-grid-2" },
-  { label: "Mi Perfil", path: "/portal/perfil", icon: "fa-user-circle" },
+  { label: "Mis Aplicaciones", path: "/", icon: "fa-grid-2" },
+  { label: "Mi Perfil", path: "/perfil", icon: "fa-user-circle" },
 ];
 
 const ADMIN_ITEMS = [
-  { label: "Administración", path: "/portal/admin", icon: "fa-user-gear" },
+  { label: "Administración", path: "/admin", icon: "fa-user-gear" },
 ];
 
 export default function PortalShell({ eyebrow, title, description, actions, user, children }: PortalShellProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -96,14 +95,12 @@ export default function PortalShell({ eyebrow, title, description, actions, user
     <div style={rootStyle}>
       {mobileOpen && <div style={mobileOverlayStyle} onClick={() => setMobileOpen(false)} />}
 
-      <aside
-        style={{
-          ...sidebarStyle,
-          width: collapsed ? 80 : 280,
-          transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
-        }}
-        className="portal-sidebar"
-      >
+      <aside style={{ 
+        ...sidebarStyle, 
+        width: collapsed ? 80 : 280,
+        transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
+      }} className="portal-sidebar">
+        
         <header style={sidebarHeaderStyle}>
           <div style={logoContainerStyle}>
             <div style={logoIconStyle}>C</div>
@@ -115,28 +112,28 @@ export default function PortalShell({ eyebrow, title, description, actions, user
             )}
           </div>
           <button style={toggleBtnStyle} onClick={() => setCollapsed(!collapsed)}>
-            <i className={`fa-solid ${collapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`}></i>
+             <i className={`fa-solid ${collapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`}></i>
           </button>
         </header>
 
         <nav style={sideNavStyle}>
           {MENU_ITEMS.map((item) => (
-            <MenuItem key={item.path} item={item} active={location.pathname === item.path} collapsed={collapsed} />
+            <MenuItem key={item.path} item={item} active={item.path === "/" ? location.pathname === "/" || location.pathname === "/dashboard" : location.pathname === item.path} collapsed={collapsed} />
           ))}
 
           {user?.carnet === "500708" && (
             <>
-              <div style={dividerStyle} />
-              <span style={sectionLabelStyle}>{!collapsed && "SISTEMA"}</span>
-              {ADMIN_ITEMS.map((item) => (
-                <MenuItem key={item.path} item={item} active={location.pathname === item.path} collapsed={collapsed} />
-              ))}
+               <div style={dividerStyle} />
+               <span style={sectionLabelStyle}>{!collapsed && "SISTEMA"}</span>
+               {ADMIN_ITEMS.map((item) => (
+                 <MenuItem key={item.path} item={item} active={item.path === "/" ? location.pathname === "/" || location.pathname === "/dashboard" : location.pathname === item.path} collapsed={collapsed} />
+               ))}
             </>
           )}
         </nav>
 
         <div style={sidebarFooterStyle}>
-          <div style={{ ...userBadgeStyle, padding: collapsed ? "12px 0" : "12px", justifyContent: collapsed ? "center" : "flex-start" }}>
+          <div style={{...userBadgeStyle, padding: collapsed ? "12px 0" : "12px", justifyContent: collapsed ? "center" : "flex-start"}}>
             <div style={avatarStyle}>{user?.nombre?.slice(0, 2).toUpperCase() || "US"}</div>
             {!collapsed && (
               <div style={{ display: "grid", gap: 1 }}>
@@ -146,9 +143,12 @@ export default function PortalShell({ eyebrow, title, description, actions, user
             )}
           </div>
           {!collapsed && (
-            <button onClick={handleLogout} style={exitLinkStyle}>
-              <i className="fa-solid fa-arrow-right-from-bracket"></i> CERRAR SESIÓN
-            </button>
+             <button 
+                onClick={handleLogout}
+                style={exitLinkStyle}
+             >
+               <i className="fa-solid fa-arrow-right-from-bracket"></i> CERRAR SESIÓN
+             </button>
           )}
         </div>
       </aside>
@@ -164,7 +164,7 @@ export default function PortalShell({ eyebrow, title, description, actions, user
               <h1 style={titleStyle}>{title}</h1>
             </div>
           </div>
-
+          
           <div style={headerActionsContainer}>
             {actions}
           </div>
@@ -172,9 +172,9 @@ export default function PortalShell({ eyebrow, title, description, actions, user
 
         <div style={scrollAreaStyle}>
           {description && (
-            <div style={descriptionRowStyle}>
-              <p style={descriptionTextStyle}>{description}</p>
-            </div>
+             <div style={descriptionRowStyle}>
+                <p style={descriptionTextStyle}>{description}</p>
+             </div>
           )}
           <div style={contentBodyStyle}>
             {children}
@@ -198,10 +198,10 @@ export default function PortalShell({ eyebrow, title, description, actions, user
 function MenuItem({ item, active, collapsed }: { item: any, active: boolean, collapsed: boolean }) {
   const icon = item.icon === "fa-grid-2" ? "fa-table-cells-large" : item.icon;
   return (
-    <Link
-      to={item.path}
-      style={{
-        ...navItemStyle,
+    <Link 
+      to={item.path} 
+      style={{ 
+        ...navItemStyle, 
         ...(active ? navItemActiveStyle : {}),
         justifyContent: collapsed ? "center" : "flex-start"
       }}

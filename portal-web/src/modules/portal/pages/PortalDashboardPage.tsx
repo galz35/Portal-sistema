@@ -14,7 +14,7 @@ export default function PortalDashboardPage() {
 
     const logoutListener = async () => {
         await logoutGlobal();
-        // Construir la URL de login respetando la subruta (ej: /portal-test/login-empleado)
+        // Construir la URL de login respetando la subruta (ej: /portal/login-empleado)
         window.location.href = appPath("/login-empleado");
     };
 

@@ -2,10 +2,10 @@
  * Centralizador de Rutas y Configuración de Entorno (Claro Portal)
  * 
  * Este archivo resuelve las bases de la APP y de la API dinámicamente.
- * Permite que el mismo código corra en Local (raíz /) y en VPS (subruta /portal-test/).
+ * Permite que el mismo código corra en Local (raíz /) y en VPS (subruta /portal/).
  */
 
-// 1. Base pública de la Web (Eje: / ó /portal-test/)
+// 1. Base pública de la Web (Eje: / ó /portal/)
 export const APP_BASE = import.meta.env.VITE_BASE_PATH || "/";
 
 // 2. Base de la API (Eje: /api ó /api-portal-test)
@@ -14,7 +14,7 @@ export const API_BASE = import.meta.env.VITE_API_URL || "/api";
 /**
  * Resuelve una ruta interna de la aplicación respetando el subdirectorio.
  * @param path Ruta absoluta interna (ej: '/login')
- * @returns Ruta final para navegación (ej: '/portal-test/login')
+ * @returns Ruta final para navegación (ej: '/portal/login')
  */
 export function appPath(path: string): string {
     const cleanPath = path.startsWith('/') ? path : `/${path}`;

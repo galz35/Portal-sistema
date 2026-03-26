@@ -9,7 +9,7 @@ export default function SinAccesoPage() {
         placeItems: "center",
         background: "linear-gradient(180deg, #ffffff 0%, #fff1f2 100%)",
         color: "#111111",
-        fontFamily: "\"Segoe UI\", sans-serif",
+        fontFamily: '"Segoe UI", sans-serif',
         padding: 24,
       }}
     >
@@ -32,7 +32,7 @@ export default function SinAccesoPage() {
           La sesion es valida, pero el usuario actual no tiene autorizacion para entrar a este recurso.
         </p>
         <a
-          href={appPath("/portal")}
+          href={appPath("/")}
           style={{
             textDecoration: "none",
             borderRadius: 14,

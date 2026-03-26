@@ -5,7 +5,16 @@ import "./LoginEmpleadoPage.css";
 
 function currentReturnUrl() {
   const params = new URLSearchParams(window.location.search);
-  return params.get("returnUrl") ?? appPath("/portal");
+  return params.get("returnUrl") ?? appPath("/");
+}
+
+function normalizePath(value: string) {
+  try {
+    const pathname = new URL(value, window.location.origin).pathname;
+    return pathname.replace(/\/+$/, "") || "/";
+  } catch {
+    return value.replace(/\/+$/, "") || "/";
+  }
 }
 
 export default function LoginEmpleadoPage() {
@@ -16,22 +25,21 @@ export default function LoginEmpleadoPage() {
 
   const canSubmit = useMemo(() => usuario.trim().length >= 3 && clave.trim().length >= 6, [usuario, clave]);
 
-  // Si el usuario ya tiene sesión en el portal, no le pedimos login de nuevo
   useEffect(() => {
     const checkExistingSession = async () => {
       const returnUrl = currentReturnUrl();
-      const portalUrl = appPath("/portal");
-      if (returnUrl === portalUrl) return; 
+      const portalUrl = normalizePath(appPath("/"));
+      if (normalizePath(returnUrl) === portalUrl) return;
 
       try {
         const response = await fetch(apiUrl("/auth/session-state"), { credentials: "include" });
         const state = await response.json();
-        
+
         if (state.authenticated) {
           console.log("🚀 Sesión activa detectada, generando ticket automático...");
-          const ssoRes = await fetch(apiUrl("/sso/ticket"), { method: 'POST', credentials: "include" });
+          const ssoRes = await fetch(apiUrl("/sso/ticket"), { method: "POST", credentials: "include" });
           const ssoData = await ssoRes.json();
-          
+
           if (ssoData.ticket) {
             const urlObj = new URL(returnUrl, window.location.origin);
             urlObj.searchParams.set("token", ssoData.ticket);
@@ -66,15 +74,15 @@ export default function LoginEmpleadoPage() {
         if (response.status === 401) msg = "Credenciales corporativas incorrectas";
         if (response.status === 500) msg = "Error interno del servidor central (500)";
         if (response.status === 403) msg = "Cuenta bloqueada o sin permisos";
-        
+
         throw new Error(msg);
       }
 
       let finalUrl = returnUrl;
       const ticket = (response.data as any)?.ticket;
-      
-      const portalUrl = appPath("/portal");
-      if (ticket && returnUrl !== portalUrl) {
+
+      const portalUrl = normalizePath(appPath("/"));
+      if (ticket && normalizePath(returnUrl) !== portalUrl) {
         const urlObj = new URL(returnUrl, window.location.origin);
         urlObj.searchParams.set("token", ticket);
         finalUrl = urlObj.toString();
@@ -90,13 +98,12 @@ export default function LoginEmpleadoPage() {
 
   return (
     <div className="login-page">
-      {/* ── Panel izquierdo: Imagen corporativa ── */}
       <aside className="login-hero">
         <div className="hero-overlay">
           <div className="hero-content">
             <div className="hero-logo">Claro</div>
             <h2 className="hero-headline">
-              Donde la conexión<br />comienza contigo.
+              Donde la conexión<br />empieza aquí.
             </h2>
             <p className="hero-tagline">
               Portal del Colaborador · Claro Nicaragua
@@ -105,15 +112,10 @@ export default function LoginEmpleadoPage() {
         </div>
       </aside>
 
-      {/* ── Panel derecho: Formulario ── */}
       <main className="login-panel">
         <div className="login-card">
           <header className="login-header">
-            <span className="badge-pill">Acceso Corporativo</span>
             <h1 className="login-title">Bienvenido</h1>
-            <p className="login-subtitle">
-              Ingresa con tu cuenta corporativa para acceder a las herramientas del portal.
-            </p>
           </header>
 
           <form onSubmit={submitLogin} className="login-form">
@@ -174,8 +176,6 @@ export default function LoginEmpleadoPage() {
               )}
             </button>
           </form>
-
-
         </div>
 
         <footer className="copyright">

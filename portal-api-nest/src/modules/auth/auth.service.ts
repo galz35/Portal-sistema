@@ -45,7 +45,7 @@ export interface EmployeeNameRecord {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly appRouteOverrides: Record<string, string> = {
-    portal: process.env.PORTAL_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal-test/',
+    portal: process.env.PORTAL_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/',
     planer: process.env.PLANER_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/planer/',
     clima: process.env.CLIMA_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/clima/',
     clinica: process.env.CLINICA_PUBLIC_URL?.trim() || '',
