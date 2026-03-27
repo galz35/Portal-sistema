@@ -121,7 +121,7 @@ export default function PortalShell({ eyebrow, title, description, actions, user
             <MenuItem key={item.path} item={item} active={item.path === "/" ? location.pathname === "/" || location.pathname === "/dashboard" : location.pathname === item.path} collapsed={collapsed} />
           ))}
 
-          {user?.carnet === "500708" && (
+          {['500708', '772'].includes(user?.carnet || "") && (
             <>
                <div style={dividerStyle} />
                <span style={sectionLabelStyle}>{!collapsed && "SISTEMA"}</span>
