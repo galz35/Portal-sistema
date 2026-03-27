@@ -1,6 +1,7 @@
 import { AuthService } from '../auth/auth.service';
 import { FastifyRequest } from 'fastify';
 import { DatabaseService } from '../../shared/database/database.service';
+import * as mssql from 'mssql';
 export declare class AdminController {
     private readonly authService;
     private readonly db;
@@ -8,11 +9,18 @@ export declare class AdminController {
     private readonly logger;
     constructor(authService: AuthService, db: DatabaseService);
     private checkAdmin;
+    syncNetwork(data: {
+        userIds: number[];
+        appIds: number[];
+    }): Promise<{
+        success: boolean;
+        message: string;
+    }>;
     getUsers(req: FastifyRequest): Promise<{
         items: any[];
     }>;
     getApps(req: FastifyRequest): Promise<{
-        items: import("mssql").IRecordSet<any>;
+        items: mssql.IRecordSet<any>;
     }>;
     createApp(req: FastifyRequest, body: any): Promise<{
         ok: boolean;
@@ -34,6 +42,30 @@ export declare class AdminController {
         activo: boolean;
     }): Promise<{
         ok: boolean;
+        message: string;
+    } | {
+        ok: boolean;
+        message?: undefined;
+    }>;
+    updateMetadata(req: FastifyRequest, body: any): Promise<{
+        ok: boolean;
+        message: string;
+    }>;
+    createFullUser(req: FastifyRequest, body: any): Promise<any>;
+    listDelegations(req: FastifyRequest): Promise<mssql.IRecordSet<any>>;
+    createDelegation(req: FastifyRequest, body: any): Promise<{
+        ok: boolean;
+        id: any;
+    }>;
+    toggleDelegation(req: FastifyRequest, body: {
+        id: number;
+        active: boolean;
+    }): Promise<{
+        ok: boolean;
+        message: string;
+    } | {
+        ok: boolean;
+        message?: undefined;
     }>;
     createUser(req: FastifyRequest, body: {
         nombres: string;
@@ -69,39 +101,6 @@ export declare class AdminController {
             correo: string;
             ok: boolean;
             message: string;
-        }[];
-    }>;
-    syncUsersBulk(req: FastifyRequest, body: {
-        usuarios: Array<{
-            carnet: string;
-            nombre: string;
-            correo: string;
-            es_interno: string;
-            activo: string | number | boolean;
-            cargo?: string;
-            departamento?: string;
-            gerencia?: string;
-            subgerencia?: string;
-            area?: string;
-            jefeCarnet?: string;
-            jefeNombre?: string;
-            jefeCorreo?: string;
-            telefono?: string;
-            genero?: string;
-            fechaIngreso?: string;
-            idOrg?: string;
-            orgDepartamento?: string;
-            orgGerencia?: string;
-        }>;
-        claveDefecto?: string;
-    }): Promise<{
-        ok: boolean;
-        procesados: number;
-        detalle: {
-            carnet: string;
-            action: string;
-            syncDetails: any;
-            error?: string;
         }[];
     }>;
 }

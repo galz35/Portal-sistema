@@ -79,4 +79,42 @@ export declare class AuthService {
     }>;
     listAllUsers(): Promise<any[]>;
     syncToSubmodules(userPayload: any): Promise<any[]>;
+    updateUserMetadata(body: {
+        idCuentaPortal: number;
+        esInterno: boolean;
+        cargo?: string;
+        gerencia?: string;
+        subgerencia?: string;
+        area?: string;
+        departamento?: string;
+        jefe?: string;
+        nombres?: string;
+        ape1?: string;
+    }): Promise<{
+        ok: boolean;
+        message: string;
+    }>;
+    listDelegations(): Promise<import("mssql").IRecordSet<any>>;
+    createDelegation(body: {
+        carnetOrigin: string;
+        nombreOrigin: string;
+        carnetSub: string;
+        nombreSub: string;
+        motivo: string;
+    }): Promise<{
+        ok: boolean;
+        id: any;
+    }>;
+    toggleDelegation(id: number, active: boolean): Promise<{
+        ok: boolean;
+        message: string;
+    } | {
+        ok: boolean;
+        message?: undefined;
+    }>;
+    createFullUser(data: any): Promise<any>;
+    syncUsersBulk(users: any[]): Promise<{
+        processed: number;
+    }>;
+    massiveNetworkSync(userIds: number[], appIds: number[]): Promise<void>;
 }

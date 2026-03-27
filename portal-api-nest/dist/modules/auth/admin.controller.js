@@ -20,6 +20,7 @@ const session_guard_1 = require("../../shared/guards/session.guard");
 const common_2 = require("@nestjs/common");
 const database_service_1 = require("../../shared/database/database.service");
 const argon2 = require("argon2");
+const mssql = require("mssql");
 let AdminController = AdminController_1 = class AdminController {
     authService;
     db;
@@ -35,6 +36,18 @@ let AdminController = AdminController_1 = class AdminController {
         if (!user || user.carnet !== this.ADMIN_CARNET) {
             throw new common_1.UnauthorizedException('No tienes permisos de administrador.');
         }
+    }
+    async syncUsersBulk(users) {
+        this.logger.log(`📥 RECIBO MASIVO: ${users.length} registros.`);
+        const result = await this.authService.syncUsersBulk(users);
+        return result;
+    }
+    async syncNetwork(data) {
+        this.logger.log(`🌐 SINCRONIZACIÓN DE RED: Procesando ${data.userIds.length} usuarios para ${data.appIds.length} apps.`);
+        this.authService.massiveNetworkSync(data.userIds, data.appIds).catch(err => {
+            this.logger.error(`❌ Error en sincronización masiva de red: ${err.message}`);
+        });
+        return { success: true, message: 'La sincronización de red ha iniciado en segundo plano.' };
     }
     async getUsers(req) {
         await this.checkAdmin(req);
@@ -60,7 +73,26 @@ let AdminController = AdminController_1 = class AdminController {
     }
     async setPermissions(req, body) {
         await this.checkAdmin(req);
-        return this.authService.toggleAppMapping(body.idCuentaPortal, body.idAplicacion, body.activo);
+        const result = await this.authService.toggleAppMapping(body.idCuentaPortal, body.idAplicacion, body.activo);
+        const user = await this.db.Pool.request()
+            .input('id', body.idCuentaPortal)
+            .query(`
+        SELECT cp.Carnet, cp.CorreoLogin, (p.Nombres + ' ' + p.PrimerApellido) as NombreCompleto, cp.Activo, cp.EsInterno 
+        FROM CuentaPortal cp 
+        JOIN Persona p ON cp.IdPersona = p.IdPersona 
+        WHERE cp.IdCuentaPortal = @id
+      `);
+        if (user.recordset.length > 0) {
+            const { Carnet, CorreoLogin, NombreCompleto, Activo, EsInterno } = user.recordset[0];
+            await this.authService.syncToSubmodules({
+                carnet: Carnet,
+                nombre: NombreCompleto,
+                correo: CorreoLogin,
+                activo: Activo === 1 || Activo === true,
+                esInterno: EsInterno === 1 || EsInterno === true
+            });
+        }
+        return result;
     }
     async resetPassword(req, body) {
         await this.checkAdmin(req);
@@ -68,11 +100,48 @@ let AdminController = AdminController_1 = class AdminController {
     }
     async toggleUser(req, body) {
         await this.checkAdmin(req);
+        const user = await this.db.Pool.request()
+            .input('id', body.idCuentaPortal)
+            .query(`
+        SELECT cp.Carnet, cp.CorreoLogin, (p.Nombres + ' ' + p.PrimerApellido) as NombreCompleto 
+        FROM CuentaPortal cp 
+        JOIN Persona p ON cp.IdPersona = p.IdPersona 
+        WHERE cp.IdCuentaPortal = @id
+      `);
+        if (user.recordset.length === 0)
+            return { ok: false, message: 'Usuario no encontrado' };
+        const { Carnet, CorreoLogin, NombreCompleto } = user.recordset[0];
         await this.db.Pool.request()
             .input('id', body.idCuentaPortal)
             .input('activo', body.activo ? 1 : 0)
             .query('UPDATE CuentaPortal SET Activo = @activo, FechaModificacion = GETDATE() WHERE IdCuentaPortal = @id');
+        await this.authService.syncToSubmodules({
+            carnet: Carnet,
+            nombre: NombreCompleto,
+            correo: CorreoLogin,
+            activo: body.activo
+        });
         return { ok: true };
+    }
+    async updateMetadata(req, body) {
+        await this.checkAdmin(req);
+        return this.authService.updateUserMetadata(body);
+    }
+    async createFullUser(req, body) {
+        await this.checkAdmin(req);
+        return this.authService.createFullUser(body);
+    }
+    async listDelegations(req) {
+        await this.checkAdmin(req);
+        return this.authService.listDelegations();
+    }
+    async createDelegation(req, body) {
+        await this.checkAdmin(req);
+        return this.authService.createDelegation(body);
+    }
+    async toggleDelegation(req, body) {
+        await this.checkAdmin(req);
+        return this.authService.toggleDelegation(body.id, body.active);
     }
     async createUser(req, body) {
         await this.checkAdmin(req);
@@ -185,100 +254,53 @@ let AdminController = AdminController_1 = class AdminController {
     }
     async syncUsersBulk(req, body) {
         await this.checkAdmin(req);
-        const clave = body.claveDefecto || '123456';
-        const hash = await argon2.hash(clave);
-        const results = [];
-        for (const u of body.usuarios) {
-            if (!u.carnet || !u.correo)
-                continue;
-            try {
-                const correo = u.correo.trim().toLowerCase();
-                const carnet = u.carnet.trim();
-                const esInterno = (u.es_interno || '').toString().toUpperCase() === 'SI' ? 1 : 0;
-                let activoVal = 1;
-                if (u.activo === 0 || u.activo === '0' || u.activo === 'NO' || u.activo === false || u.activo === 'FALSE') {
-                    activoVal = 0;
-                }
-                const nameParts = u.nombre.trim().split(' ');
-                const nombres = nameParts[0] || '';
-                const ape1 = nameParts.length > 1 ? nameParts[1] : '';
-                const ape2 = nameParts.length > 2 ? nameParts.slice(2).join(' ') : '';
-                const usuarioLogin = correo.split('@')[0];
-                let idPersona;
-                let idCuenta;
-                let isNew = false;
-                const existReq = await this.db.Pool.request()
-                    .input('c', carnet)
-                    .input('email', correo)
-                    .query('SELECT TOP 1 cp.IdCuentaPortal, p.IdPersona FROM CuentaPortal cp JOIN Persona p ON cp.IdPersona = p.IdPersona WHERE cp.Carnet = @c OR cp.CorreoLogin = @email');
-                if (existReq.recordset.length > 0) {
-                    idCuenta = existReq.recordset[0].IdCuentaPortal;
-                    idPersona = existReq.recordset[0].IdPersona;
-                    await this.db.Pool.request()
-                        .input('id', idCuenta)
-                        .input('activo', activoVal)
-                        .input('esInterno', esInterno)
-                        .query('UPDATE CuentaPortal SET Activo = @activo, EsInterno = @esInterno, FechaModificacion = GETDATE() WHERE IdCuentaPortal = @id');
-                }
-                else {
-                    isNew = true;
-                    const rPersona = await this.db.Pool.request()
-                        .input('nombres', nombres)
-                        .input('ape1', ape1)
-                        .input('ape2', ape2)
-                        .query(`INSERT INTO Persona (Nombres, PrimerApellido, SegundoApellido, FechaCreacion) OUTPUT INSERTED.IdPersona VALUES (@nombres, @ape1, @ape2, GETDATE())`);
-                    idPersona = rPersona.recordset[0].IdPersona;
-                    const rCuenta = await this.db.Pool.request()
-                        .input('idPersona', idPersona)
-                        .input('usuario', usuarioLogin)
-                        .input('correo', correo)
-                        .input('carnet', carnet)
-                        .input('hash', hash)
-                        .input('activo', activoVal)
-                        .input('esInterno', esInterno)
-                        .query(`
-              INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, FechaCreacion)
-              OUTPUT INSERTED.IdCuentaPortal VALUES (@idPersona, @usuario, @correo, @carnet, @hash, @activo, 0, @esInterno, GETDATE())
-            `);
-                    idCuenta = rCuenta.recordset[0].IdCuentaPortal;
-                    const rApp = await this.db.Pool.request().query("SELECT IdAplicacion FROM AplicacionSistema WHERE Codigo = 'portal' AND Activo = 1");
-                    if (rApp.recordset.length > 0) {
-                        await this.db.Pool.request().input('u', idCuenta).input('a', rApp.recordset[0].IdAplicacion)
-                            .query('INSERT INTO UsuarioAplicacion (IdCuentaPortal, IdAplicacion, Activo, FechaCreacion) VALUES (@u, @a, 1, GETDATE())');
-                    }
-                }
-                const payloadToSync = {
-                    carnet: carnet,
-                    nombre: u.nombre,
-                    correo: correo,
-                    activo: activoVal === 1,
-                    esInterno: esInterno === 1,
-                    cargo: u.cargo,
-                    departamento: u.departamento,
-                    gerencia: u.gerencia,
-                    subgerencia: u.subgerencia,
-                    area: u.area,
-                    jefeCarnet: u.jefeCarnet,
-                    jefeNombre: u.jefeNombre,
-                    jefeCorreo: u.jefeCorreo,
-                    telefono: u.telefono,
-                    genero: u.genero,
-                    fechaIngreso: u.fechaIngreso,
-                    idOrg: u.idOrg,
-                    orgDepartamento: u.orgDepartamento,
-                    orgGerencia: u.orgGerencia
-                };
-                const syncLog = await this.authService.syncToSubmodules(payloadToSync);
-                results.push({ carnet, action: isNew ? 'CREATED' : 'UPDATED', syncDetails: syncLog });
+        try {
+            const count = body.usuarios?.length || 0;
+            this.logger.log(`📥 RECIBO MASIVO: [${count}] usuarios desde el cliente.`);
+            if (count === 0)
+                return { ok: false, message: 'No hay usuarios para procesar.' };
+            const result = await this.db.Pool.request()
+                .input('JsonData', mssql.NVarChar(mssql.MAX), JSON.stringify(body.usuarios))
+                .execute('dbo.spAdmin_SincronizarUsuariosBulk');
+            const procesados = result.recordset?.[0]?.Procesados || 0;
+            if (Array.isArray(body.usuarios)) {
+                body.usuarios.forEach(u => {
+                    this.authService.syncToSubmodules({
+                        carnet: u.carnet,
+                        nombre: u.nombre,
+                        correo: u.correo,
+                        activo: u.activo !== 0 && u.activo !== '0' && u.activo !== 'NO' && u.activo !== false,
+                        esInterno: (u.es_interno || '').toString().toUpperCase() === 'SI'
+                    });
+                });
             }
-            catch (err) {
-                results.push({ carnet: u.carnet, action: 'ERROR', syncDetails: [], error: err.message });
-            }
+            return {
+                ok: true,
+                procesados,
+                message: `${procesados} usuarios procesados exitosamente.`
+            };
         }
-        return { ok: true, procesados: results.length, detalle: results };
+        catch (err) {
+            this.logger.error(`❌ Error en carga masiva SQL: ${err.message}`);
+            return { ok: false, message: err.message };
+        }
     }
 };
 exports.AdminController = AdminController;
+__decorate([
+    (0, common_1.Post)('sync-users-bulk'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Array]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "syncUsersBulk", null);
+__decorate([
+    (0, common_1.Post)('sync-network'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "syncNetwork", null);
 __decorate([
     (0, common_1.Get)('users'),
     __param(0, (0, common_2.Req)()),
@@ -342,6 +364,45 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "toggleUser", null);
+__decorate([
+    (0, common_1.Post)('update-metadata'),
+    __param(0, (0, common_2.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "updateMetadata", null);
+__decorate([
+    (0, common_1.Post)('create-full-user'),
+    __param(0, (0, common_2.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "createFullUser", null);
+__decorate([
+    (0, common_1.Get)('list-delegations'),
+    __param(0, (0, common_2.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "listDelegations", null);
+__decorate([
+    (0, common_1.Post)('create-delegation'),
+    __param(0, (0, common_2.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "createDelegation", null);
+__decorate([
+    (0, common_1.Post)('toggle-delegation'),
+    __param(0, (0, common_2.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], AdminController.prototype, "toggleDelegation", null);
 __decorate([
     (0, common_1.Post)('create-user'),
     __param(0, (0, common_2.Req)()),

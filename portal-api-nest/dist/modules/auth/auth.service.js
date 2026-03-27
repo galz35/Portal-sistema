@@ -19,7 +19,7 @@ let AuthService = AuthService_1 = class AuthService {
     db;
     logger = new common_1.Logger(AuthService_1.name);
     appRouteOverrides = {
-        portal: process.env.PORTAL_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal-test/',
+        portal: process.env.PORTAL_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/',
         planer: process.env.PLANER_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/planer/',
         clima: process.env.CLIMA_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/clima/',
         clinica: process.env.CLINICA_PUBLIC_URL?.trim() || '',
@@ -29,15 +29,15 @@ let AuthService = AuthService_1 = class AuthService {
     submoduleSyncTargets = [
         {
             name: 'Planer',
-            url: process.env.PLANER_SYNC_URL?.trim() || 'http://127.0.0.1:3021/Planer_api/auth/sso-sync-user',
+            url: process.env.PLANER_SYNC_URL?.trim() || 'http://127.0.0.1:3002/api/auth/sso-sync-user',
+        },
+        {
+            name: 'Clima',
+            url: process.env.CLIMA_SYNC_URL?.trim() || 'http://127.0.0.1:3004/api/auth/sso-sync-user',
         },
         {
             name: 'Clinica',
             url: process.env.CLINICA_SYNC_URL?.trim() || '',
-        },
-        {
-            name: 'Clima',
-            url: process.env.CLIMA_SYNC_URL?.trim() || '',
         },
     ];
     constructor(db) {
@@ -331,10 +331,19 @@ let AuthService = AuthService_1 = class AuthService {
           cp.Usuario, 
           cp.CorreoLogin, 
           cp.Activo, 
-          p.Nombres, 
-          p.PrimerApellido, 
-          p.SegundoApellido, 
+          cp.EsInterno,
+          ISNULL(p.Nombres, '') as Nombres, 
+          ISNULL(p.PrimerApellido, '') as PrimerApellido, 
+          ISNULL(p.SegundoApellido, '') as SegundoApellido, 
           cp.Carnet,
+          emp.cargo as Cargo,
+          emp.OGERENCIA as Gerencia,
+          emp.oSUBGERENCIA as Subgerencia,
+          emp.primernivel as Area,
+          emp.departamento,
+          emp.Gender as Sexo,
+          emp.nom_jefe1 as Jefe,
+          emp.telefono as Telefono,
           (
             SELECT ua.IdAplicacion 
             FROM UsuarioAplicacion ua 
@@ -342,7 +351,8 @@ let AuthService = AuthService_1 = class AuthService {
             FOR JSON PATH
           ) as AppsJson
         FROM CuentaPortal cp
-        JOIN Persona p ON cp.IdPersona = p.IdPersona
+        LEFT JOIN Persona p ON cp.IdPersona = p.IdPersona
+        LEFT JOIN Empleado emp ON cp.Carnet = emp.carnet -- carnet en minúscula como el original
         ORDER BY p.Nombres ASC
       `);
             return result.recordset.map(row => ({
@@ -381,6 +391,206 @@ let AuthService = AuthService_1 = class AuthService {
             }
         }
         return results;
+    }
+    async updateUserMetadata(body) {
+        const pool = this.db.Pool;
+        const userRes = await pool.request().input('id', body.idCuentaPortal)
+            .query('SELECT Carnet, IdPersona FROM CuentaPortal WHERE IdCuentaPortal = @id');
+        if (userRes.recordset.length === 0)
+            return { ok: false, message: 'Usuario no encontrado' };
+        const { Carnet, IdPersona } = userRes.recordset[0];
+        await pool.request()
+            .input('id', body.idCuentaPortal)
+            .input('esInterno', body.esInterno ? 1 : 0)
+            .query('UPDATE CuentaPortal SET EsInterno = @esInterno WHERE IdCuentaPortal = @id');
+        if (body.nombres || body.ape1) {
+            await pool.request()
+                .input('id', IdPersona)
+                .input('n', body.nombres)
+                .input('a1', body.ape1)
+                .query('UPDATE Persona SET Nombres = ISNULL(@n, Nombres), PrimerApellido = ISNULL(@a1, PrimerApellido) WHERE IdPersona = @id');
+        }
+        if (Carnet) {
+            await pool.request()
+                .input('c', Carnet)
+                .input('cargo', body.cargo || '')
+                .input('gerencia', body.gerencia || '')
+                .input('subgerencia', body.subgerencia || '')
+                .input('area', body.area || '')
+                .input('departamento', body.departamento || '')
+                .input('jefe', body.jefe || '')
+                .query(`
+          UPDATE Empleado SET 
+            cargo = @cargo, OGERENCIA = @gerencia, oSUBGERENCIA = @subgerencia, 
+            primernivel = @area, departamento = @departamento, nom_jefe1 = @jefe, FechaModificacion = GETDATE()
+          WHERE carnet = @c
+        `);
+        }
+        return { ok: true, message: 'Información actualizada exitosamente.' };
+    }
+    async listDelegations() {
+        const res = await this.db.Pool.request().query("SELECT * FROM DelegacionTemporal ORDER BY FechaCreacion DESC");
+        return res.recordset;
+    }
+    async createDelegation(body) {
+        const pool = this.db.Pool;
+        const res = await pool.request()
+            .input("co", body.carnetOrigin)
+            .input("no", body.nombreOrigin)
+            .input("cs", body.carnetSub)
+            .input("ns", body.nombreSub)
+            .input("m", body.motivo)
+            .query(`
+        INSERT INTO DelegacionTemporal (CarnetOriginal, NombreOriginal, CarnetSustituto, NombreSustituto, Motivo, Activo) 
+        OUTPUT INSERTED.Id 
+        VALUES (@co, @no, @cs, @ns, @m, 0)
+      `);
+        return { ok: true, id: res.recordset[0].Id };
+    }
+    async toggleDelegation(id, active) {
+        const pool = this.db.Pool;
+        const delRes = await pool.request().input("id", id).query("SELECT * FROM DelegacionTemporal WHERE Id = @id");
+        if (delRes.recordset.length === 0)
+            return { ok: false, message: "Delegación no encontrada" };
+        const del = delRes.recordset[0];
+        if (active) {
+            const dependientes = await pool.request()
+                .input("jefe", del.NombreOriginal)
+                .query("SELECT carnet FROM Empleado WHERE nom_jefe1 = @jefe");
+            const carnetList = dependientes.recordset.map(r => r.carnet);
+            if (carnetList.length > 0) {
+                for (const c of carnetList) {
+                    await pool.request().input("did", id).input("c", c).query("INSERT INTO DelegacionDependiente (DelegacionId, CarnetEmpleado) VALUES (@did, @c)");
+                }
+                await pool.request()
+                    .input("jefeOrig", del.NombreOriginal)
+                    .input("jefeSub", del.NombreSustituto)
+                    .query("UPDATE Empleado SET nom_jefe1 = @jefeSub WHERE nom_jefe1 = @jefeOrig");
+            }
+        }
+        else {
+            await pool.request()
+                .input("did", id)
+                .input("jefeOrig", del.NombreOriginal)
+                .query(`
+          UPDATE Empleado SET nom_jefe1 = @jefeOrig 
+          WHERE carnet IN (SELECT CarnetEmpleado FROM DelegacionDependiente WHERE DelegacionId = @did)
+        `);
+            await pool.request().input("did", id).query("DELETE FROM DelegacionDependiente WHERE DelegacionId = @did");
+        }
+        await pool.request().input("id", id).input("a", active ? 1 : 0).query("UPDATE DelegacionTemporal SET Activo = @a WHERE Id = @id");
+        return { ok: true };
+    }
+    async createFullUser(data) {
+        try {
+            const resP = await this.db.Pool.request()
+                .input("n", data.nombres)
+                .input("a", data.ape1)
+                .query("INSERT INTO Persona (Nombres, PrimerApellido, Activo) OUTPUT INSERTED.IdPersona VALUES (@n, @a, 1)");
+            const idPersona = resP.recordset[0].IdPersona;
+            await this.db.Pool.request()
+                .input("idp", idPersona)
+                .input("u", data.correoLogin.split('@')[0])
+                .input("c", data.correoLogin)
+                .input("p", "123456")
+                .input("car", data.carnet)
+                .input("int", data.esInterno ? 1 : 0)
+                .query(`
+          INSERT INTO CuentaPortal (IdPersona, Usuario, Clave, CorreoLogin, Carnet, Activo, EsInterno)
+          VALUES (@idp, @u, @c, @c, @car, 1, @int)
+        `);
+            await this.db.Pool.request()
+                .input("car", data.carnet)
+                .input("nom", `${data.nombres} ${data.ape1}`)
+                .input("caro", data.cargo)
+                .input("ger", data.gerencia)
+                .input("sub", data.subgerencia)
+                .input("area", data.area)
+                .input("dep", data.departamento)
+                .input("jef", data.jefe)
+                .input("sex", data.sexo)
+                .query(`
+          IF NOT EXISTS (SELECT 1 FROM Empleado WHERE carnet = @car)
+          INSERT INTO Empleado (carnet, nombres, cargo, OGERENCIA, oSUBGERENCIA, primernivel, departamento, nom_jefe1, Gender)
+          VALUES (@car, @nom, @caro, @ger, @sub, @area, @dep, @jef, @sex)
+          ELSE
+          UPDATE Empleado SET 
+            nombres=@nom, cargo=@caro, OGERENCIA=@ger, oSUBGERENCIA=@sub, 
+            primernivel=@area, departamento=@dep, nom_jefe1=@jef, Gender=@sex
+          WHERE carnet = @car
+        `);
+            return { ok: true };
+        }
+        catch (err) {
+            return { ok: false, message: err.message };
+        }
+    }
+    async syncUsersBulk(users) {
+        try {
+            const json = JSON.stringify(users);
+            const res = await this.db.Pool.request()
+                .input('JsonData', json)
+                .execute('dbo.spAdmin_SincronizarUsuariosBulk');
+            const processed = res.recordset[0]?.Procesados || 0;
+            this.logger.log(`✅ Sincronización Bulk completada: ${processed} usuarios procesados.`);
+            return { processed };
+        }
+        catch (err) {
+            this.logger.error(`❌ Error en syncUsersBulk: ${err.message}`);
+            throw err;
+        }
+    }
+    async massiveNetworkSync(userIds, appIds) {
+        const pool = this.db.Pool;
+        const usersRes = await pool.request()
+            .query(`
+              SELECT 
+                  cp.Carnet as carnet,
+                  p.Nombres + ' ' + ISNULL(p.PrimerApellido, '') as nombre,
+                  cp.CorreoLogin as correo,
+                  cp.Activo as activo,
+                  cp.EsInterno as esInterno,
+                  emp.cargo,
+                  emp.OGERENCIA as gerencia,
+                  emp.oSUBGERENCIA as subgerencia,
+                  emp.primernivel as area,
+                  emp.departamento,
+                  emp.nom_jefe1 as jefeNombre,
+                  emp.telefono,
+                  emp.Gender as genero
+              FROM CuentaPortal cp
+              JOIN Persona p ON cp.IdPersona = p.IdPersona
+              LEFT JOIN Empleado emp ON cp.Carnet = emp.carnet
+              WHERE cp.IdCuentaPortal IN (${userIds.join(',')})
+          `);
+        const usersToSync = usersRes.recordset;
+        const targets = [];
+        if (appIds.includes(1))
+            targets.push(this.submoduleSyncTargets[0]);
+        if (appIds.includes(2))
+            targets.push(this.submoduleSyncTargets[1]);
+        this.logger.log(`🚀 Iniciando sincronización masiva de red para ${usersToSync.length} usuarios en ${targets.length} apps.`);
+        const batchSize = 50;
+        for (let i = 0; i < usersToSync.length; i += batchSize) {
+            const batch = usersToSync.slice(i, i + batchSize);
+            await Promise.all(batch.map(user => {
+                return Promise.all(targets.map(async (target) => {
+                    if (!target.url)
+                        return;
+                    try {
+                        await fetch(target.url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(user)
+                        });
+                    }
+                    catch (e) {
+                    }
+                }));
+            }));
+            this.logger.log(`📦 Lote de sincronización completado: ${Math.min(i + batchSize, usersToSync.length)}/${usersToSync.length}`);
+        }
+        this.logger.log(`🏁 Sincronización masiva de red finalizada.`);
     }
 };
 exports.AuthService = AuthService;

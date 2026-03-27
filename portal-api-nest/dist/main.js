@@ -11,6 +11,7 @@ const http_exception_filter_1 = require("./shared/filters/http-exception.filter"
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule, new platform_fastify_1.FastifyAdapter({
         logger: true,
+        bodyLimit: 52428800
     }));
     await app.register(cookie_1.default, {
         secret: process.env.COOKIE_SECRET ?? 'secret-portal-key',

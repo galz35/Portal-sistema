@@ -13,7 +13,8 @@ async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
-      logger: true, // Habilitar logs de Fastify
+      logger: true,
+      bodyLimit: 52428800 // 50 Megabytes para JSON masivos
     }),
   );
 
