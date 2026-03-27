@@ -116,7 +116,10 @@ export default function LoginEmpleadoPage() {
       <aside className="login-hero">
         <div className="hero-overlay">
           <div className="hero-content">
-            <div className="hero-logo">Claro</div>
+            <div className="hero-logo" style={{ marginBottom: 0 }}>Claro</div>
+            <div style={{ fontSize: "1rem", fontWeight: 700, color: "rgba(255, 255, 255, 0.95)", marginBottom: "32px", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+              Haciendo posible un mundo mejor
+            </div>
             <h2 className="hero-headline">
               Donde la conexión<br />empieza aquí.
             </h2>
