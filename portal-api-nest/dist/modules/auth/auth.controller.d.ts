@@ -17,6 +17,12 @@ export declare class AuthController {
     private readonly auditLogger;
     private readonly logger;
     constructor(authService: AuthService, sesionesService: SesionesService, cookies: CookiesService, tokenService: SessionTokenService, csrfService: CsrfService, rateLimitService: RateLimitService, auditLogger: AuditLoggerService);
+    health(): Promise<{
+        status: string;
+        version: string;
+        timestamp: string;
+        service: string;
+    }>;
     loginEmpleado(body: LoginEmpleadoDto, req: FastifyRequest, reply: FastifyReply): Promise<never>;
     sessionState(request: FastifyRequest, reply: FastifyReply): Promise<never>;
     changePassword(req: FastifyRequest, body: any): Promise<{

@@ -514,7 +514,7 @@ export default function AdminUsuariosPage() {
                                 setToast({ msg: "Iniciando Sincronización Global de Red...", type: "ok" });
                                 try {
                                     const userIds = usuarios.map(u => u.IdCuentaPortal);
-                                    await fetch(`${apiUrl}/api/admin/sync-network`, {
+                                    await fetch(apiUrl(`/admin/sync-network`), {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({ userIds, appIds: [1, 2] })

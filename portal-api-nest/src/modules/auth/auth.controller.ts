@@ -42,6 +42,16 @@ export class AuthController {
     private readonly auditLogger: AuditLoggerService,
   ) {}
 
+  @Get('health')
+  async health() {
+    return {
+      status: 'OK',
+      version: '1.0.8-sync-network',
+      timestamp: new Date().toISOString(),
+      service: 'Portal CORE API'
+    };
+  }
+
   @Post('login-empleado')
   async loginEmpleado(
     @Body() body: LoginEmpleadoDto,

@@ -45,6 +45,14 @@ let AuthController = AuthController_1 = class AuthController {
         this.rateLimitService = rateLimitService;
         this.auditLogger = auditLogger;
     }
+    async health() {
+        return {
+            status: 'OK',
+            version: '1.0.8-sync-network',
+            timestamp: new Date().toISOString(),
+            service: 'Portal CORE API'
+        };
+    }
     async loginEmpleado(body, req, reply) {
         try {
             const usuario = body.usuario.trim();
@@ -181,6 +189,12 @@ let AuthController = AuthController_1 = class AuthController {
     }
 };
 exports.AuthController = AuthController;
+__decorate([
+    (0, common_1.Get)('health'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "health", null);
 __decorate([
     (0, common_1.Post)('login-empleado'),
     __param(0, (0, common_1.Body)()),
