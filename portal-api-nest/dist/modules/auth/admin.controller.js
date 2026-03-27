@@ -20,7 +20,6 @@ const session_guard_1 = require("../../shared/guards/session.guard");
 const common_2 = require("@nestjs/common");
 const database_service_1 = require("../../shared/database/database.service");
 const argon2 = require("argon2");
-const mssql = require("mssql");
 let AdminController = AdminController_1 = class AdminController {
     authService;
     db;
@@ -37,10 +36,9 @@ let AdminController = AdminController_1 = class AdminController {
             throw new common_1.UnauthorizedException('No tienes permisos de administrador.');
         }
     }
-    async syncUsersBulk(users) {
-        this.logger.log(`📥 RECIBO MASIVO: ${users.length} registros.`);
-        const result = await this.authService.syncUsersBulk(users);
-        return result;
+    async syncUsersBulk(body) {
+        this.logger.log(`📥 RECIBO MASIVO: ${body.usuarios?.length || 0} registros.`);
+        return await this.authService.syncUsersBulk(body.usuarios || []);
     }
     async syncNetwork(data) {
         this.logger.log(`🌐 SINCRONIZACIÓN DE RED: Procesando ${data.userIds.length} usuarios para ${data.appIds.length} apps.`);
@@ -96,7 +94,7 @@ let AdminController = AdminController_1 = class AdminController {
     }
     async resetPassword(req, body) {
         await this.checkAdmin(req);
-        return this.authService.setPassword(body.idCuentaPortal, body.nuevaClave);
+        return this.authService.setPassword(body.idCuentaPortal, body.nuevaClave, true);
     }
     async toggleUser(req, body) {
         await this.checkAdmin(req);
@@ -149,6 +147,7 @@ let AdminController = AdminController_1 = class AdminController {
         const correo = body.correo.trim().toLowerCase();
         const usuario = body.usuario?.trim() || correo.split('@')[0];
         const clave = body.clave || '123456';
+        const mustChangePassword = !body.clave || clave === '123456';
         const hash = await argon2.hash(clave);
         const dup = await pool.request().input('c', correo)
             .query('SELECT 1 FROM CuentaPortal WHERE CorreoLogin = @c');
@@ -171,10 +170,11 @@ let AdminController = AdminController_1 = class AdminController {
             .input('correo', correo)
             .input('carnet', body.carnet.trim())
             .input('hash', hash)
+            .input('mustChangePassword', mustChangePassword ? 1 : 0)
             .query(`
-        INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, FechaCreacion)
+        INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, DebeCambiarClave, FechaCreacion)
         OUTPUT INSERTED.IdCuentaPortal
-        VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, GETDATE())
+        VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, @mustChangePassword, GETDATE())
       `);
         const idCuenta = rCuenta.recordset[0].IdCuentaPortal;
         const rPortalApp = await pool.request().query("SELECT IdAplicacion FROM AplicacionSistema WHERE Codigo = 'portal' AND Activo = 1");
@@ -185,13 +185,6 @@ let AdminController = AdminController_1 = class AdminController {
                 .query('INSERT INTO UsuarioAplicacion (IdCuentaPortal, IdAplicacion, Activo, FechaCreacion) VALUES (@u, @a, 1, GETDATE())');
         }
         this.logger.log(`✅ Usuario creado: ${correo} (ID: ${idCuenta})`);
-        await this.authService.syncToSubmodules({
-            carnet: body.carnet.trim(),
-            nombre: (body.nombres + ' ' + body.primerApellido).trim(),
-            correo: correo,
-            activo: true,
-            esInterno: true
-        });
         return { ok: true, idCuentaPortal: idCuenta, message: `Usuario ${correo} creado exitosamente con clave por defecto.` };
     }
     async importUsers(req, body) {
@@ -224,9 +217,10 @@ let AdminController = AdminController_1 = class AdminController {
                     .input('correo', correo)
                     .input('carnet', u.carnet.trim())
                     .input('hash', hash)
+                    .input('mustChangePassword', 1)
                     .query(`
-            INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, FechaCreacion)
-            OUTPUT INSERTED.IdCuentaPortal VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, GETDATE())
+            INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, DebeCambiarClave, FechaCreacion)
+            OUTPUT INSERTED.IdCuentaPortal VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, @mustChangePassword, GETDATE())
           `);
                 const idCuenta = rCuenta.recordset[0].IdCuentaPortal;
                 const rApp = await this.db.Pool.request().query("SELECT IdAplicacion FROM AplicacionSistema WHERE Codigo = 'portal' AND Activo = 1");
@@ -235,13 +229,6 @@ let AdminController = AdminController_1 = class AdminController {
                         .query('INSERT INTO UsuarioAplicacion (IdCuentaPortal, IdAplicacion, Activo, FechaCreacion) VALUES (@u, @a, 1, GETDATE())');
                 }
                 results.push({ correo, ok: true, message: 'Creado' });
-                await this.authService.syncToSubmodules({
-                    carnet: u.carnet.trim(),
-                    nombre: (u.nombres + ' ' + u.primerApellido).trim(),
-                    correo: correo,
-                    activo: true,
-                    esInterno: true
-                });
             }
             catch (err) {
                 results.push({ correo: u.correo, ok: false, message: String(err) });
@@ -252,46 +239,13 @@ let AdminController = AdminController_1 = class AdminController {
         this.logger.log(`📦 Importación masiva: ${created} creados, ${skipped} omitidos`);
         return { ok: true, creados: created, omitidos: skipped, detalle: results };
     }
-    async syncUsersBulk(req, body) {
-        await this.checkAdmin(req);
-        try {
-            const count = body.usuarios?.length || 0;
-            this.logger.log(`📥 RECIBO MASIVO: [${count}] usuarios desde el cliente.`);
-            if (count === 0)
-                return { ok: false, message: 'No hay usuarios para procesar.' };
-            const result = await this.db.Pool.request()
-                .input('JsonData', mssql.NVarChar(mssql.MAX), JSON.stringify(body.usuarios))
-                .execute('dbo.spAdmin_SincronizarUsuariosBulk');
-            const procesados = result.recordset?.[0]?.Procesados || 0;
-            if (Array.isArray(body.usuarios)) {
-                body.usuarios.forEach(u => {
-                    this.authService.syncToSubmodules({
-                        carnet: u.carnet,
-                        nombre: u.nombre,
-                        correo: u.correo,
-                        activo: u.activo !== 0 && u.activo !== '0' && u.activo !== 'NO' && u.activo !== false,
-                        esInterno: (u.es_interno || '').toString().toUpperCase() === 'SI'
-                    });
-                });
-            }
-            return {
-                ok: true,
-                procesados,
-                message: `${procesados} usuarios procesados exitosamente.`
-            };
-        }
-        catch (err) {
-            this.logger.error(`❌ Error en carga masiva SQL: ${err.message}`);
-            return { ok: false, message: err.message };
-        }
-    }
 };
 exports.AdminController = AdminController;
 __decorate([
     (0, common_1.Post)('sync-users-bulk'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Array]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "syncUsersBulk", null);
 __decorate([
@@ -419,14 +373,6 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], AdminController.prototype, "importUsers", null);
-__decorate([
-    (0, common_1.Post)('sync-users-bulk'),
-    __param(0, (0, common_2.Req)()),
-    __param(1, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
-    __metadata("design:returntype", Promise)
-], AdminController.prototype, "syncUsersBulk", null);
 exports.AdminController = AdminController = AdminController_1 = __decorate([
     (0, common_1.Controller)('api/admin'),
     (0, common_1.UseGuards)(session_guard_1.SessionGuard),

@@ -9,6 +9,11 @@ export declare class AdminController {
     private readonly logger;
     constructor(authService: AuthService, db: DatabaseService);
     private checkAdmin;
+    syncUsersBulk(body: {
+        usuarios: any[];
+    }): Promise<{
+        processed: number;
+    }>;
     syncNetwork(data: {
         userIds: number[];
         appIds: number[];

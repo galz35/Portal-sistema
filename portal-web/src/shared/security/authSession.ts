@@ -16,5 +16,6 @@ export async function fetchSessionState() {
     apps: me?.apps ?? [],
     permisos: me?.permisos ?? [],
     nombre: me?.nombre ?? me?.usuario ?? "Usuario Portal",
+    mustChangePassword: !!me?.mustChangePassword || !!session.mustChangePassword,
   };
 }

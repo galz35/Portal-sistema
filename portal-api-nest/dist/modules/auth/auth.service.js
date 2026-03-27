@@ -58,6 +58,22 @@ let AuthService = AuthService_1 = class AuthService {
         }
         return currentRoute;
     }
+    async getMustChangePassword(idCuentaPortal) {
+        try {
+            const request = this.db.Pool.request();
+            request.input('IdCuentaPortal', idCuentaPortal);
+            const result = await request.query(`
+        SELECT CAST(ISNULL(DebeCambiarClave, 0) AS bit) as DebeCambiarClave
+        FROM CuentaPortal
+        WHERE IdCuentaPortal = @IdCuentaPortal
+      `);
+            return !!result.recordset?.[0]?.DebeCambiarClave;
+        }
+        catch (err) {
+            this.logger.error(`getMustChangePassword failed: ${err}`);
+            return false;
+        }
+    }
     async findLoginUser(usuario) {
         try {
             const request = this.db.Pool.request();
@@ -79,6 +95,7 @@ let AuthService = AuthService_1 = class AuthService {
                 activo: row.Activo ?? false,
                 bloqueado: row.Bloqueado ?? false,
                 claveHash: (row.ClaveHash ?? '').trim(),
+                mustChangePassword: await this.getMustChangePassword(row.IdCuentaPortal ?? 0),
             };
         }
         catch (err) {
@@ -126,6 +143,7 @@ let AuthService = AuthService_1 = class AuthService {
                 correo: (row.correo || row.CorreoLogin || '').trim(),
                 carnet: (row.Carnet ?? '').trim(),
                 esInterno: row.EsInterno ?? false,
+                mustChangePassword: await this.getMustChangePassword(idCuentaPortal),
                 apps,
                 permisos,
             };
@@ -315,12 +333,13 @@ let AuthService = AuthService_1 = class AuthService {
         }
         return { ok: true };
     }
-    async setPassword(idCuentaPortal, nuevaClave) {
+    async setPassword(idCuentaPortal, nuevaClave, mustChangePassword = false) {
         const hash = await argon2.hash(nuevaClave);
         await this.db.Pool.request()
             .input('id', idCuentaPortal)
             .input('hash', hash)
-            .query('UPDATE CuentaPortal SET ClaveHash = @hash, FechaModificacion = GETDATE() WHERE IdCuentaPortal = @id');
+            .input('mustChangePassword', mustChangePassword ? 1 : 0)
+            .query('UPDATE CuentaPortal SET ClaveHash = @hash, DebeCambiarClave = @mustChangePassword, FechaModificacion = GETDATE() WHERE IdCuentaPortal = @id');
         return { ok: true };
     }
     async listAllUsers() {

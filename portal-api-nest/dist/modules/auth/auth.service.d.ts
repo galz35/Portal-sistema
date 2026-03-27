@@ -7,6 +7,7 @@ export interface LoginLookup {
     activo: boolean;
     bloqueado: boolean;
     claveHash: string;
+    mustChangePassword: boolean;
 }
 export interface AuthenticatedUser {
     idCuentaPortal: number;
@@ -16,6 +17,7 @@ export interface AuthenticatedUser {
     correo: string;
     carnet: string;
     esInterno: boolean;
+    mustChangePassword: boolean;
     apps: string[];
     permisos: string[];
 }
@@ -40,6 +42,7 @@ export declare class AuthService {
     private readonly submoduleSyncTargets;
     constructor(db: DatabaseService);
     private normalizeAppRoute;
+    getMustChangePassword(idCuentaPortal: number): Promise<boolean>;
     findLoginUser(usuario: string): Promise<LoginLookup | null>;
     validarClavePortal(claveHash: string, clavePlana: string): Promise<boolean>;
     getUser(idCuentaPortal: number): Promise<AuthenticatedUser | null>;
@@ -74,7 +77,7 @@ export declare class AuthService {
     toggleAppMapping(idCuentaPortal: number, idAplicacion: number, activo: boolean): Promise<{
         ok: boolean;
     }>;
-    setPassword(idCuentaPortal: number, nuevaClave: string): Promise<{
+    setPassword(idCuentaPortal: number, nuevaClave: string, mustChangePassword?: boolean): Promise<{
         ok: boolean;
     }>;
     listAllUsers(): Promise<any[]>;

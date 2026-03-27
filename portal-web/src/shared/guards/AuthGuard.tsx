@@ -20,6 +20,14 @@ export default function AuthGuard({ children }: AuthGuardProps) {
         return;
       }
 
+      const profileUrl = appPath("/perfil");
+      const currentPath = window.location.pathname.replace(/\/+$/, "") || "/";
+      const profilePath = profileUrl.replace(/\/+$/, "") || "/";
+      if (session.mustChangePassword && currentPath !== profilePath) {
+        window.location.href = `${profileUrl}?forcePasswordChange=1`;
+        return;
+      }
+
       setAuthenticated(true);
       setLoading(false);
     });

@@ -30,6 +30,12 @@ let SsoController = class SsoController {
         if (!user) {
             return reply.status(common_1.HttpStatus.UNAUTHORIZED).send({ ok: false, message: 'Sesión no válida' });
         }
+        if (user.mustChangePassword) {
+            return reply.status(common_1.HttpStatus.FORBIDDEN).send({
+                ok: false,
+                message: 'Debes cambiar tu contraseña temporal antes de ingresar a otras aplicaciones.',
+            });
+        }
         const payload = {
             sub: user.idCuentaPortal,
             username: user.usuario,

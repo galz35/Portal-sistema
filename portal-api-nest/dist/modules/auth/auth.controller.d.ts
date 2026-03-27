@@ -31,6 +31,7 @@ export declare class AuthController {
         correo: string;
         carnet: string;
         esInterno: boolean;
+        mustChangePassword: boolean;
         apps: string[];
         permisos: string[];
         ok: boolean;

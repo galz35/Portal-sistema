@@ -11,6 +11,7 @@ export interface LoginLookup {
   activo: boolean;
   bloqueado: boolean;
   claveHash: string;
+  mustChangePassword: boolean;
 }
 
 export interface AuthenticatedUser {
@@ -21,6 +22,7 @@ export interface AuthenticatedUser {
   correo: string;
   carnet: string;
   esInterno: boolean;
+  mustChangePassword: boolean;
   apps: string[];
   permisos: string[];
 }
@@ -89,6 +91,23 @@ export class AuthService {
     return currentRoute;
   }
 
+  async getMustChangePassword(idCuentaPortal: number): Promise<boolean> {
+    try {
+      const request = this.db.Pool.request();
+      request.input('IdCuentaPortal', idCuentaPortal);
+      const result = await request.query(`
+        SELECT CAST(ISNULL(DebeCambiarClave, 0) AS bit) as DebeCambiarClave
+        FROM CuentaPortal
+        WHERE IdCuentaPortal = @IdCuentaPortal
+      `);
+
+      return !!result.recordset?.[0]?.DebeCambiarClave;
+    } catch (err) {
+      this.logger.error(`getMustChangePassword failed: ${err}`);
+      return false;
+    }
+  }
+
   async findLoginUser(usuario: string): Promise<LoginLookup | null> {
     try {
       const request = this.db.Pool.request();
@@ -112,6 +131,7 @@ export class AuthService {
         activo: row.Activo ?? false,
         bloqueado: row.Bloqueado ?? false,
         claveHash: (row.ClaveHash ?? '').trim(),
+        mustChangePassword: await this.getMustChangePassword(row.IdCuentaPortal ?? 0),
       };
     } catch (err) {
       this.logger.error(`findLoginUser failed: ${err}`);
@@ -167,6 +187,7 @@ export class AuthService {
         correo: (row.correo || row.CorreoLogin || '').trim(),
         carnet: (row.Carnet ?? '').trim(),
         esInterno: row.EsInterno ?? false,
+        mustChangePassword: await this.getMustChangePassword(idCuentaPortal),
         apps,
         permisos,
       };
@@ -365,12 +386,13 @@ export class AuthService {
     return { ok: true };
   }
 
-  async setPassword(idCuentaPortal: number, nuevaClave: string) {
+  async setPassword(idCuentaPortal: number, nuevaClave: string, mustChangePassword = false) {
     const hash = await argon2.hash(nuevaClave);
     await this.db.Pool.request()
       .input('id', idCuentaPortal)
       .input('hash', hash)
-      .query('UPDATE CuentaPortal SET ClaveHash = @hash, FechaModificacion = GETDATE() WHERE IdCuentaPortal = @id');
+      .input('mustChangePassword', mustChangePassword ? 1 : 0)
+      .query('UPDATE CuentaPortal SET ClaveHash = @hash, DebeCambiarClave = @mustChangePassword, FechaModificacion = GETDATE() WHERE IdCuentaPortal = @id');
     return { ok: true };
   }
 

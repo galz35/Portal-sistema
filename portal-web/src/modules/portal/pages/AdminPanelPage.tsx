@@ -1,4 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
+
+type StatusNotice = {
+    tone: 'success' | 'error';
+    message: string;
+};
 
 interface User {
     IdCuentaPortal: number;
@@ -21,6 +26,7 @@ export default function AdminPanel() {
     const [users, setUsers] = useState<User[]>([]);
     const [apps, setApps] = useState<App[]>([]);
     const [loading, setLoading] = useState(true);
+    const [statusNotice, setStatusNotice] = useState<StatusNotice | null>(null);
 
     useEffect(() => {
         const loadData = async () => {
@@ -34,7 +40,8 @@ export default function AdminPanel() {
                 setUsers(uData.items || []);
                 setApps(aData.items || []);
             } catch (err) {
-                console.error("Error cargando admin data:", err);
+                console.error('Error cargando admin data:', err);
+                setStatusNotice({ tone: 'error', message: 'No se pudieron cargar los datos del panel de administración.' });
             } finally {
                 setLoading(false);
             }
@@ -43,12 +50,24 @@ export default function AdminPanel() {
     }, []);
 
     const togglePermission = async (userId: number, appId: number, active: boolean) => {
-        await fetch('/api/admin/permissions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idCuentaPortal: userId, idAplicacion: appId, activo: active })
-        });
-        alert('Permiso actualizado');
+        setStatusNotice(null);
+
+        try {
+            const response = await fetch('/api/admin/permissions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idCuentaPortal: userId, idAplicacion: appId, activo: active })
+            });
+
+            if (!response.ok) {
+                throw new Error('Permission update failed');
+            }
+
+            setStatusNotice({ tone: 'success', message: 'Permiso actualizado correctamente.' });
+        } catch (err) {
+            console.error('Error actualizando permiso:', err);
+            setStatusNotice({ tone: 'error', message: 'No se pudo actualizar el permiso. Intenta nuevamente.' });
+        }
     };
 
     if (loading) return <div className="p-10">Cargando Panel de Control de Claro...</div>;
@@ -57,6 +76,13 @@ export default function AdminPanel() {
         <div style={{ padding: 40, fontFamily: 'sans-serif' }}>
             <h1 style={{ color: '#DA291C' }}>🛡️ Panel de Administración - Portal Central</h1>
             <p>Desde aquí puedes gestionar quién entra a qué sistema.</p>
+
+            {statusNotice && (
+                <div style={getStatusNoticeStyle(statusNotice.tone)}>
+                    <strong>{statusNotice.tone === 'success' ? 'Actualización completada.' : 'Acción no aplicada.'}</strong>
+                    <span>{statusNotice.message}</span>
+                </div>
+            )}
 
             <div style={{ marginTop: 40 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -82,8 +108,8 @@ export default function AdminPanel() {
                                 <td style={{ padding: 12 }}>{user.Usuario}</td>
                                 {apps.map(app => (
                                     <td key={app.IdAplicacion} style={{ padding: 12, textAlign: 'center' }}>
-                                        <input 
-                                            type="checkbox" 
+                                        <input
+                                            type="checkbox"
                                             onChange={(e) => togglePermission(user.IdCuentaPortal, app.IdAplicacion, e.target.checked)}
                                         />
                                     </td>
@@ -95,4 +121,22 @@ export default function AdminPanel() {
             </div>
         </div>
     );
+}
+
+function getStatusNoticeStyle(tone: StatusNotice['tone']): CSSProperties {
+    const palette = tone === 'success'
+        ? { background: '#ecfdf3', border: '#86efac', color: '#166534' }
+        : { background: '#fff1f2', border: '#fda4af', color: '#be123c' };
+
+    return {
+        marginTop: 20,
+        padding: '14px 18px',
+        borderRadius: 14,
+        border: `1px solid ${palette.border}`,
+        background: palette.background,
+        color: palette.color,
+        display: 'grid',
+        gap: 4,
+        maxWidth: 720,
+    };
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, CSSProperties } from 'react';
 import { getMe, getCsrfTokenFromCookie } from "../../../shared/api/coreApi";
 import PortalShell, { panelStyle } from "../components/PortalShell";
+import { apiUrl, appPath } from "../../../shared/config/runtime";
 
 type MeProfile = {
   idCuentaPortal?: number;
@@ -9,71 +10,195 @@ type MeProfile = {
   correo?: string;
   carnet?: string;
   esInterno?: boolean;
+  mustChangePassword?: boolean;
+};
+
+type PasswordFeedback = {
+  tone: "error" | "success" | "info";
+  message: string;
+};
+
+type NoticeDialog = {
+  tone: "error" | "success" | "info";
+  title: string;
+  message: string;
+  action?: "goHome";
+  buttonLabel?: string;
 };
 
 export default function PerfilBasePage() {
+  const forceFromUrl = new URLSearchParams(window.location.search).get("forcePasswordChange") === "1";
   const [profile, setProfile] = useState<MeProfile | null>(null);
   const [showPassModal, setShowPassModal] = useState(false);
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [passwordFeedback, setPasswordFeedback] = useState<PasswordFeedback | null>(null);
+  const [noticeDialog, setNoticeDialog] = useState<NoticeDialog | null>(null);
+
+  const mustChangePassword = !!profile?.mustChangePassword;
+
+  const openPasswordModal = () => {
+    setPasswordFeedback(null);
+    setShowConfirmModal(false);
+    setShowPassModal(true);
+  };
 
   useEffect(() => {
-    void getMe().then((data) => setProfile(data));
-  }, []);
+    let cancelled = false;
 
-  const handleChangePassword = async () => {
-    if (!newPass || !confirmPass) return alert("Por favor ingresa y confirma tu nueva contraseña");
-    if (newPass !== confirmPass) return alert("Las contraseñas no coinciden, por favor verifica.");
-    
-    const confirmed = window.confirm("¿Estás completamente seguro de que deseas cambiar tu contraseña?");
-    if (!confirmed) return;
+    void getMe().then((data) => {
+      if (cancelled) return;
+      setProfile(data);
+      if (data?.mustChangePassword || forceFromUrl) {
+        openPasswordModal();
+      }
+    });
 
+    return () => {
+      cancelled = true;
+    };
+  }, [forceFromUrl]);
+
+  useEffect(() => {
+    if (mustChangePassword && !showPassModal) {
+      openPasswordModal();
+    }
+  }, [mustChangePassword, showPassModal]);
+
+  const closePasswordModal = () => {
+    if (mustChangePassword) {
+      return;
+    }
+
+    setShowPassModal(false);
+    setShowConfirmModal(false);
+    setPasswordFeedback(null);
+    setNewPass("");
+    setConfirmPass("");
+    setShowPass(false);
+  };
+
+  const closeNoticeDialog = () => {
+    const action = noticeDialog?.action;
+    setNoticeDialog(null);
+    if (action === "goHome") {
+      window.location.href = appPath("/");
+    }
+  };
+
+  const submitPasswordChange = async () => {
+    setShowConfirmModal(false);
     setUpdating(true);
+    setPasswordFeedback(null);
     const csrf = getCsrfTokenFromCookie();
-    console.log("🔐 CSRF Token detected:", csrf ? "YES (present)" : "NO (missing)");
+    const wasForced = mustChangePassword || forceFromUrl;
 
     try {
-      const res = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...(csrf ? { 'X-CSRF-Token': csrf } : {})
+      const res = await fetch(apiUrl("/auth/change-password"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrf ? { "X-CSRF-Token": csrf } : {}),
         },
         body: JSON.stringify({ nuevaClave: newPass }),
-        credentials: "include"
+        credentials: "include",
       });
+
       if (res.ok) {
-        alert("¡Éxito! Tu contraseña ha sido actualizada.");
         setNewPass("");
-        setShowPassModal(false);
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        alert(errorData.message || "Error al actualizar la contraseña.");
+        setConfirmPass("");
+        setShowPass(false);
+
+        const refreshed = await getMe();
+        setProfile(refreshed);
+        const stillMustChange = !!refreshed?.mustChangePassword;
+        setShowPassModal(stillMustChange);
+
+        if (!stillMustChange) {
+          window.history.replaceState({}, "", appPath("/perfil"));
+        }
+
+        setNoticeDialog({
+          tone: "success",
+          title: "Contraseña actualizada",
+          message: wasForced
+            ? "Tu acceso ya quedó habilitado. Ya puedes usar el portal y abrir otras aplicaciones."
+            : "Tu contraseña fue actualizada correctamente.",
+          action: wasForced && !stillMustChange ? "goHome" : undefined,
+          buttonLabel: wasForced && !stillMustChange ? "Continuar" : "Cerrar",
+        });
+        return;
       }
-    } catch (err) {
-      alert("Error de conexión con el servidor.");
+
+      const errorData = await res.json().catch(() => ({}));
+      setPasswordFeedback({
+        tone: "error",
+        message: errorData.message || "Error al actualizar la contraseña.",
+      });
+    } catch {
+      setPasswordFeedback({
+        tone: "error",
+        message: "Error de conexión con el servidor.",
+      });
     } finally {
       setUpdating(false);
     }
   };
 
+  const handleChangePassword = () => {
+    if (!newPass || !confirmPass) {
+      setPasswordFeedback({
+        tone: "error",
+        message: "Por favor ingresa y confirma tu nueva contraseña.",
+      });
+      return;
+    }
+
+    if (newPass !== confirmPass) {
+      setPasswordFeedback({
+        tone: "error",
+        message: "Las contraseñas no coinciden. Verifica ambas entradas.",
+      });
+      return;
+    }
+
+    setPasswordFeedback(null);
+    setShowConfirmModal(true);
+  };
+
   return (
     <PortalShell
-      eyebrow="Configuración"
+      eyebrow={mustChangePassword ? "Acción Requerida" : "Configuración"}
       title="Mi Perfil"
-      description=""
+      description={mustChangePassword ? "Tu cuenta tiene una contraseña temporal. Debes actualizarla antes de usar el portal y abrir otras aplicaciones." : ""}
       user={{ nombre: profile?.nombre || "Cargando...", rol: profile?.usuario || "Empleado", carnet: profile?.carnet }}
     >
       <div style={profileGridStyle}>
+        {mustChangePassword && (
+          <section style={{ ...panelStyle, border: "1px solid #fdba74", background: "#fff7ed" }}>
+            <span style={{ display: "inline-block", fontSize: 11, fontWeight: 900, letterSpacing: "1.5px", color: "#c2410c", textTransform: "uppercase", marginBottom: 12 }}>
+              Seguridad Obligatoria
+            </span>
+            <h3 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: "#7c2d12" }}>Debes cambiar tu contraseña temporal</h3>
+            <p style={{ margin: "12px 0 20px", color: "#9a3412", lineHeight: 1.6, maxWidth: 720 }}>
+              Tu cuenta fue habilitada con una clave provisional. Hasta que la actualices, el portal bloqueará el acceso a otras aplicaciones.
+            </p>
+            <button style={primaryActionButtonStyle} onClick={openPasswordModal}>
+              Cambiar contraseña ahora
+            </button>
+          </section>
+        )}
+
         <section style={panelStyle}>
           <div style={profileHeaderStyle}>
-             <div style={bigAvatarStyle}>{profile?.nombre?.slice(0, 2).toUpperCase() || "US"}</div>
-             <div style={{ display: "grid", gap: 4 }}>
-                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900 }}>{profile?.nombre || "Cargando..."}</h2>
-                <span style={roleBadgeStyle}>{profile?.esInterno ? "COLABORADOR INTERNO" : "USUARIO PORTAL"}</span>
-             </div>
+            <div style={bigAvatarStyle}>{profile?.nombre?.slice(0, 2).toUpperCase() || "US"}</div>
+            <div style={{ display: "grid", gap: 4 }}>
+              <h2 style={{ margin: 0, fontSize: 24, fontWeight: 900 }}>{profile?.nombre || "Cargando..."}</h2>
+              <span style={roleBadgeStyle}>{profile?.esInterno ? "COLABORADOR INTERNO" : "USUARIO PORTAL"}</span>
+            </div>
           </div>
 
           <div style={statsDividerStyle} />
@@ -87,19 +212,32 @@ export default function PerfilBasePage() {
         </section>
 
         <section style={{ ...panelStyle, background: "#f8fafc" }}>
-           <h3 style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 900 }}>Seguridad de la Cuenta</h3>
-           <p style={{ margin: "0 0 24px", color: "#64748b", fontSize: 14 }}>Mantén tu cuenta protegida y revisa los accesos recientes.</p>
-           <div style={{ display: "flex", gap: 16 }}>
-              <button 
-                style={primaryActionButtonStyle} 
-                onClick={() => setShowPassModal(true)}
+          <h3 style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 900 }}>Seguridad de la Cuenta</h3>
+          <p style={{ margin: "0 0 24px", color: "#64748b", fontSize: 14 }}>
+            {mustChangePassword
+              ? "Tu contraseña temporal debe cambiarse antes de continuar."
+              : "Mantén tu cuenta protegida y revisa los accesos recientes."}
+          </p>
+          <div style={{ display: "flex", gap: 16 }}>
+            <button style={primaryActionButtonStyle} onClick={openPasswordModal}>
+              {mustChangePassword ? "Actualizar contraseña" : "Cambiar Contraseña"}
+            </button>
+            {!mustChangePassword && (
+              <button
+                style={secondaryButtonStyle}
+                onClick={() =>
+                  setNoticeDialog({
+                    tone: "info",
+                    title: "Historial de Accesos",
+                    message: "Esta vista quedará disponible en una siguiente fase del portal.",
+                    buttonLabel: "Entendido",
+                  })
+                }
               >
-                Cambiar Contraseña
-              </button>
-              <button style={secondaryButtonStyle} onClick={() => alert("Próximamente: Historial de sesiones activas")}>
                 Historial de Accesos
               </button>
-           </div>
+            )}
+          </div>
         </section>
       </div>
 
@@ -107,55 +245,137 @@ export default function PerfilBasePage() {
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
             <header style={{ marginBottom: 24 }}>
-                <div style={modalIconStyle}>
-                    <i className="fa-solid fa-shield-halved"></i>
-                </div>
-                <h3 style={{ margin: "16px 0 8px", fontSize: 22, fontWeight: 900, color: "#0f172a" }}>Seguridad de Acceso</h3>
-                <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
-                    Ingresa tu nueva contraseña para el Claro Portal. 
-                    Usamos <strong>Argon2id</strong> para proteger tus datos.
-                </p>
+              <div style={modalIconStyle}>
+                <i className="fa-solid fa-shield-halved"></i>
+              </div>
+              <h3 style={{ margin: "16px 0 8px", fontSize: 22, fontWeight: 900, color: "#0f172a" }}>Seguridad de Acceso</h3>
+              <p style={{ margin: 0, fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>
+                Ingresa tu nueva contraseña para el Claro Portal.
+                Usamos <strong>Argon2id</strong> para proteger tus datos.
+              </p>
             </header>
 
-            <div style={{ position: 'relative', marginBottom: 16 }}>
-                <i className="fa-solid fa-key" style={inputIconStyle}></i>
-                <input 
-                  type={showPass ? "text" : "password"} 
-                  placeholder="Nueva contraseña robusta..." 
-                  style={{...modalInputStyle, paddingRight: 48}}
-                  value={newPass}
-                  onChange={(e) => setNewPass(e.target.value)}
-                  autoFocus
-                />
-                <button 
-                  onClick={() => setShowPass(!showPass)}
-                  style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', outline: 'none' }}
-                >
-                  <i className={showPass ? "fa-solid fa-eye-slash" : "fa-solid fa-eye"}></i>
-                </button>
+            <div style={{ position: "relative", marginBottom: 16 }}>
+              <i className="fa-solid fa-key" style={inputIconStyle}></i>
+              <input
+                type={showPass ? "text" : "password"}
+                placeholder="Nueva contraseña robusta..."
+                style={{ ...modalInputStyle, paddingRight: 48 }}
+                value={newPass}
+                onChange={(e) => {
+                  setNewPass(e.target.value);
+                  if (passwordFeedback?.tone === "error") {
+                    setPasswordFeedback(null);
+                  }
+                }}
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass(!showPass)}
+                style={{ position: "absolute", right: 16, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#94a3b8", cursor: "pointer", outline: "none" }}
+              >
+                <i className={showPass ? "fa-solid fa-eye-slash" : "fa-solid fa-eye"}></i>
+              </button>
             </div>
 
-            <div style={{ position: 'relative' }}>
-                <i className="fa-solid fa-lock" style={inputIconStyle}></i>
-                <input 
-                  type={showPass ? "text" : "password"} 
-                  placeholder="Confirma la nueva contraseña..." 
-                  style={{...modalInputStyle, paddingRight: 48}}
-                  value={confirmPass}
-                  onChange={(e) => setConfirmPass(e.target.value)}
-                />
+            <div style={{ position: "relative" }}>
+              <i className="fa-solid fa-lock" style={inputIconStyle}></i>
+              <input
+                type={showPass ? "text" : "password"}
+                placeholder="Confirma la nueva contraseña..."
+                style={{ ...modalInputStyle, paddingRight: 48 }}
+                value={confirmPass}
+                onChange={(e) => {
+                  setConfirmPass(e.target.value);
+                  if (passwordFeedback?.tone === "error") {
+                    setPasswordFeedback(null);
+                  }
+                }}
+              />
             </div>
+
+            {passwordFeedback && (
+              <div style={getFeedbackBannerStyle(passwordFeedback.tone)}>
+                <i className={`fa-solid ${getFeedbackIcon(passwordFeedback.tone)}`}></i>
+                <span>{passwordFeedback.message}</span>
+              </div>
+            )}
+
+            {mustChangePassword && (
+              <div style={{ marginTop: 18, padding: "12px 14px", background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 14, color: "#9a3412", fontSize: 13, lineHeight: 1.5 }}>
+                Debes actualizar tu contraseña antes de usar el portal o abrir otras aplicaciones.
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: 12, justifyContent: "stretch", marginTop: 32 }}>
-              <button style={{ ...secondaryButtonStyle, flex: 1 }} onClick={() => { setShowPassModal(false); setNewPass(""); setConfirmPass(""); setShowPass(false); }}>CANCELAR</button>
-              <button 
-                style={{ ...primaryActionButtonStyle, flex: 1.5, boxShadow: "0 10px 20px -5px rgba(218, 41, 28, 0.4)" }} 
+              {!mustChangePassword && (
+                <button type="button" style={{ ...secondaryButtonStyle, flex: 1 }} onClick={closePasswordModal}>
+                  CANCELAR
+                </button>
+              )}
+              <button
+                type="button"
+                style={{ ...primaryActionButtonStyle, flex: mustChangePassword ? 1 : 1.5, boxShadow: "0 10px 20px -5px rgba(218, 41, 28, 0.4)" }}
                 onClick={handleChangePassword}
                 disabled={updating}
               >
                 {updating ? (
-                    <><i className="fa-solid fa-circle-notch fa-spin"></i> GUARDANDO...</>
+                  <><i className="fa-solid fa-circle-notch fa-spin"></i> GUARDANDO...</>
                 ) : "ACTUALIZAR CLAVE"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showConfirmModal && (
+        <div style={modalOverlayStyle}>
+          <div style={dialogContentStyle}>
+            <div style={{ ...dialogIconShellStyle, background: "#fff7ed", color: "#c2410c" }}>
+              <i className="fa-solid fa-shield"></i>
+            </div>
+            <h3 style={dialogTitleStyle}>Confirmar cambio de contraseña</h3>
+            <p style={dialogMessageStyle}>
+              Vas a actualizar la contraseña de acceso de tu cuenta. Confirma para aplicar el cambio.
+            </p>
+            <div style={dialogActionRowStyle}>
+              <button
+                type="button"
+                style={{ ...secondaryButtonStyle, flex: 1 }}
+                onClick={() => setShowConfirmModal(false)}
+                disabled={updating}
+              >
+                Revisar
+              </button>
+              <button
+                type="button"
+                style={{ ...primaryActionButtonStyle, flex: 1.2 }}
+                onClick={submitPasswordChange}
+                disabled={updating}
+              >
+                Sí, actualizar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {noticeDialog && (
+        <div style={modalOverlayStyle}>
+          <div style={dialogContentStyle}>
+            <div style={getDialogIconStyle(noticeDialog.tone)}>
+              <i className={`fa-solid ${getFeedbackIcon(noticeDialog.tone)}`}></i>
+            </div>
+            <h3 style={dialogTitleStyle}>{noticeDialog.title}</h3>
+            <p style={dialogMessageStyle}>{noticeDialog.message}</p>
+            <div style={dialogActionRowStyle}>
+              <button
+                type="button"
+                style={{ ...primaryActionButtonStyle, minWidth: 160 }}
+                onClick={closeNoticeDialog}
+              >
+                {noticeDialog.buttonLabel ?? "Aceptar"}
               </button>
             </div>
           </div>
@@ -169,7 +389,7 @@ function ProfileItem({ label, value, icon }: { label: string; value: string; ico
   return (
     <article style={profileItemStyle}>
       <div style={itemIconBoxStyle}>
-          <i className={`fa-solid ${icon}`}></i>
+        <i className={`fa-solid ${icon}`}></i>
       </div>
       <div style={{ display: "grid", gap: 2 }}>
         <span style={itemLabelStyle}>{label}</span>
@@ -186,155 +406,247 @@ const profileGridStyle: CSSProperties = {
 };
 
 const profileHeaderStyle: CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 24,
-    marginBottom: 32,
+  display: "flex",
+  alignItems: "center",
+  gap: 24,
+  marginBottom: 32,
 };
 
 const bigAvatarStyle: CSSProperties = {
-    width: 80,
-    height: 80,
-    background: "linear-gradient(135deg, #DA291C 0%, #a51d14 100%)",
-    borderRadius: "24px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 28,
-    fontWeight: 900,
-    color: "#fff",
-    boxShadow: "0 15px 30px -5px rgba(218, 41, 28, 0.3)",
+  width: 80,
+  height: 80,
+  background: "linear-gradient(135deg, #DA291C 0%, #a51d14 100%)",
+  borderRadius: "24px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 28,
+  fontWeight: 900,
+  color: "#fff",
+  boxShadow: "0 15px 30px -5px rgba(218, 41, 28, 0.3)",
 };
 
 const roleBadgeStyle: CSSProperties = {
-    fontSize: 11,
-    fontWeight: 800,
-    color: "#DA291C",
-    background: "#fff1f2",
-    padding: "4px 12px",
-    borderRadius: "6px",
-    display: "inline-block",
+  fontSize: 11,
+  fontWeight: 800,
+  color: "#DA291C",
+  background: "#fff1f2",
+  padding: "4px 12px",
+  borderRadius: "6px",
+  display: "inline-block",
 };
 
 const statsDividerStyle: CSSProperties = {
-    height: 1,
-    background: "#f1f5f9",
-    margin: "0 -32px 32px",
+  height: 1,
+  background: "#f1f5f9",
+  margin: "0 -32px 32px",
 };
 
 const infoGridStyle: CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    gap: 32,
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+  gap: 32,
 };
 
 const profileItemStyle: CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 16,
+  display: "flex",
+  alignItems: "center",
+  gap: 16,
 };
 
 const itemIconBoxStyle: CSSProperties = {
-    width: 44,
-    height: 44,
-    background: "#f8fafc",
-    border: "1px solid #e2e8f0",
-    borderRadius: "12px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#64748b",
+  width: 44,
+  height: 44,
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+  borderRadius: "12px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#64748b",
 };
 
 const itemLabelStyle: CSSProperties = {
-    fontSize: 12,
-    fontWeight: 700,
-    color: "#94a3b8",
-    textTransform: "uppercase",
-    letterSpacing: "0.5px",
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#94a3b8",
+  textTransform: "uppercase",
+  letterSpacing: "0.5px",
 };
 
 const itemValueStyle: CSSProperties = {
-    fontSize: 16,
-    color: "#0f172a",
-    fontWeight: 700,
+  fontSize: 16,
+  color: "#0f172a",
+  fontWeight: 700,
 };
 
 const primaryActionButtonStyle: CSSProperties = {
-    background: "#DA291C",
-    border: "none",
-    borderRadius: "12px",
-    padding: "10px 24px",
-    fontSize: 13,
-    fontWeight: 700,
-    color: "#fff",
-    cursor: "pointer",
+  background: "#DA291C",
+  border: "none",
+  borderRadius: "12px",
+  padding: "10px 24px",
+  fontSize: 13,
+  fontWeight: 700,
+  color: "#fff",
+  cursor: "pointer",
 };
 
 const secondaryButtonStyle: CSSProperties = {
-    background: "#fff",
-    border: "1px solid #e2e8f0",
-    borderRadius: "12px",
-    padding: "10px 20px",
-    fontSize: 13,
-    fontWeight: 700,
-    color: "#475569",
-    cursor: "pointer",
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "12px",
+  padding: "10px 20px",
+  fontSize: 13,
+  fontWeight: 700,
+  color: "#475569",
+  cursor: "pointer",
 };
 
 const modalOverlayStyle: CSSProperties = {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: "rgba(15, 23, 42, 0.6)",
-    backdropFilter: "blur(4px)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000,
+  position: "fixed",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: "rgba(15, 23, 42, 0.6)",
+  backdropFilter: "blur(4px)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 1000,
 };
 
 const modalContentStyle: CSSProperties = {
-    background: "#fff",
-    padding: 32,
-    borderRadius: 24,
-    maxWidth: 450,
-    width: "90%",
-    boxShadow: "0 20px 40px -10px rgba(0,0,0,0.3)",
+  background: "#fff",
+  padding: 32,
+  borderRadius: 24,
+  maxWidth: 450,
+  width: "90%",
+  boxShadow: "0 20px 40px -10px rgba(0,0,0,0.3)",
+};
+
+const dialogContentStyle: CSSProperties = {
+  ...modalContentStyle,
+  maxWidth: 420,
+  textAlign: "center",
 };
 
 const modalInputStyle: CSSProperties = {
-    width: "100%",
-    padding: "16px 16px 16px 48px",
-    borderRadius: "14px",
-    border: "2px solid #f1f5f9",
-    background: "#f8fafc",
-    fontSize: 15,
-    fontWeight: 600,
-    outline: "none",
-    boxSizing: 'border-box',
-    transition: "all 0.2s linear",
+  width: "100%",
+  padding: "16px 16px 16px 48px",
+  borderRadius: "14px",
+  border: "2px solid #f1f5f9",
+  background: "#f8fafc",
+  fontSize: 15,
+  fontWeight: 600,
+  outline: "none",
+  boxSizing: "border-box",
+  transition: "all 0.2s linear",
 };
 
 const modalIconStyle: CSSProperties = {
-    width: 56,
-    height: 56,
-    background: "#fff1f2",
-    color: "#DA291C",
-    borderRadius: "16px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 24,
+  width: 56,
+  height: 56,
+  background: "#fff1f2",
+  color: "#DA291C",
+  borderRadius: "16px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 24,
+};
+
+const dialogIconShellStyle: CSSProperties = {
+  width: 60,
+  height: 60,
+  borderRadius: "18px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 24,
+  margin: "0 auto 16px",
+};
+
+const dialogTitleStyle: CSSProperties = {
+  margin: "0 0 10px",
+  fontSize: 22,
+  fontWeight: 900,
+  color: "#0f172a",
+};
+
+const dialogMessageStyle: CSSProperties = {
+  margin: 0,
+  color: "#475569",
+  lineHeight: 1.6,
+  fontSize: 14,
+};
+
+const dialogActionRowStyle: CSSProperties = {
+  display: "flex",
+  gap: 12,
+  justifyContent: "center",
+  marginTop: 28,
 };
 
 const inputIconStyle: CSSProperties = {
-    position: "absolute",
-    left: 18,
-    top: "50%",
-    transform: "translateY(-50%)",
-    color: "#94a3b8",
-    fontSize: 16,
+  position: "absolute",
+  left: 18,
+  top: "50%",
+  transform: "translateY(-50%)",
+  color: "#94a3b8",
+  fontSize: 16,
 };
+
+function getFeedbackBannerStyle(tone: PasswordFeedback["tone"]): CSSProperties {
+  const styles = {
+    error: {
+      background: "#fff1f2",
+      border: "1px solid #fda4af",
+      color: "#be123c",
+    },
+    success: {
+      background: "#ecfdf3",
+      border: "1px solid #86efac",
+      color: "#166534",
+    },
+    info: {
+      background: "#eff6ff",
+      border: "1px solid #93c5fd",
+      color: "#1d4ed8",
+    },
+  } satisfies Record<PasswordFeedback["tone"], { background: string; border: string; color: string }>;
+
+  return {
+    marginTop: 18,
+    padding: "12px 14px",
+    borderRadius: 14,
+    fontSize: 13,
+    lineHeight: 1.5,
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 10,
+    ...styles[tone],
+  };
+}
+
+function getFeedbackIcon(tone: PasswordFeedback["tone"]): string {
+  switch (tone) {
+    case "success":
+      return "fa-circle-check";
+    case "info":
+      return "fa-circle-info";
+    default:
+      return "fa-circle-exclamation";
+  }
+}
+
+function getDialogIconStyle(tone: NoticeDialog["tone"]): CSSProperties {
+  switch (tone) {
+    case "success":
+      return { ...dialogIconShellStyle, background: "#ecfdf3", color: "#15803d" };
+    case "info":
+      return { ...dialogIconShellStyle, background: "#eff6ff", color: "#1d4ed8" };
+    default:
+      return { ...dialogIconShellStyle, background: "#fff1f2", color: "#be123c" };
+  }
+}

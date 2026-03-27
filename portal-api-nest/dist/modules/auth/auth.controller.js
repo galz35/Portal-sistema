@@ -85,7 +85,7 @@ let AuthController = AuthController_1 = class AuthController {
             this.cookies.appendSessionCookies(reply, sid, csrfToken);
             await this.auditLogger.registerLoginAttempt(usuario, user.idCuentaPortal, ip, ua, true, null);
             let ticket;
-            if (body.returnUrl) {
+            if (body.returnUrl && !user.mustChangePassword) {
                 const fullUser = await this.authService.getUser(user.idCuentaPortal);
                 if (fullUser) {
                     const payload = {
@@ -107,6 +107,7 @@ let AuthController = AuthController_1 = class AuthController {
                 ok: true,
                 usuario: user.usuario,
                 nombre: user.nombre,
+                mustChangePassword: user.mustChangePassword,
                 ticket,
             });
         }
@@ -128,10 +129,12 @@ let AuthController = AuthController_1 = class AuthController {
         if (!estado?.autenticado || !estado.idCuentaPortal) {
             return reply.status(common_1.HttpStatus.OK).send({ authenticated: false });
         }
+        const mustChangePassword = await this.authService.getMustChangePassword(estado.idCuentaPortal);
         return reply.status(common_1.HttpStatus.OK).send({
             authenticated: true,
             idSesionPortal: estado.idSesionPortal,
             idCuentaPortal: estado.idCuentaPortal,
+            mustChangePassword,
         });
     }
     async changePassword(req, body) {
@@ -139,7 +142,7 @@ let AuthController = AuthController_1 = class AuthController {
         if (!body.nuevaClave || body.nuevaClave.length < 6) {
             throw new common_1.UnauthorizedException('La contraseña debe tener al menos 6 caracteres.');
         }
-        await this.authService.setPassword(session.idCuentaPortal, body.nuevaClave);
+        await this.authService.setPassword(session.idCuentaPortal, body.nuevaClave, false);
         const ip = (0, request_metadata_1.extractClientIp)(req) || '0.0.0.0';
         await this.auditLogger.registerLoginAttempt('SYSTEM', session.idCuentaPortal, ip, 'SYSTEM', true, 'PASSWORD_CHANGED_BY_USER');
         return { ok: true, message: 'Contraseña actualizada con éxito' };

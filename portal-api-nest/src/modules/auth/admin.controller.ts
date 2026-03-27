@@ -27,18 +27,15 @@ export class AdminController {
   }
 
   @Post('sync-users-bulk')
-  async syncUsersBulk(@Body() users: any[]) {
-    this.logger.log(`📥 RECIBO MASIVO: ${users.length} registros.`);
-    // Corregido: AdminController usa authService
-    const result = await this.authService.syncUsersBulk(users);
-    return result;
+  async syncUsersBulk(@Body() body: { usuarios: any[] }) {
+    this.logger.log(`📥 RECIBO MASIVO: ${body.usuarios?.length || 0} registros.`);
+    return await this.authService.syncUsersBulk(body.usuarios || []);
   }
 
   @Post('sync-network')
   async syncNetwork(@Body() data: { userIds: number[], appIds: number[] }) {
       this.logger.log(`🌐 SINCRONIZACIÓN DE RED: Procesando ${data.userIds.length} usuarios para ${data.appIds.length} apps.`);
       
-      // Corregido: AdminController usa authService
       this.authService.massiveNetworkSync(data.userIds, data.appIds).catch(err => {
           this.logger.error(`❌ Error en sincronización masiva de red: ${err.message}`);
       });
@@ -83,8 +80,6 @@ export class AdminController {
     await this.checkAdmin(req);
     const result = await this.authService.toggleAppMapping(body.idCuentaPortal, body.idAplicacion, body.activo);
     
-    // Al dar o quitar acceso, aprovechamos para sincronizar los datos básicos del usuario
-    // asegurando que el sistema satélite tenga el registro actualizado.
     const user = await this.db.Pool.request()
       .input('id', body.idCuentaPortal)
       .query(`
@@ -111,15 +106,13 @@ export class AdminController {
   @Post('reset-password')
   async resetPassword(@Req() req: FastifyRequest, @Body() body: any) {
     await this.checkAdmin(req);
-    return this.authService.setPassword(body.idCuentaPortal, body.nuevaClave);
+    return this.authService.setPassword(body.idCuentaPortal, body.nuevaClave, true);
   }
 
-  // ── Activar / Desactivar usuario ──
   @Post('toggle-user')
   async toggleUser(@Req() req: FastifyRequest, @Body() body: { idCuentaPortal: number; activo: boolean }) {
     await this.checkAdmin(req);
     
-    // 1. Obtener datos básicos del usuario antes de sincronizar
     const user = await this.db.Pool.request()
       .input('id', body.idCuentaPortal)
       .query(`
@@ -132,13 +125,11 @@ export class AdminController {
     if (user.recordset.length === 0) return { ok: false, message: 'Usuario no encontrado' };
     const { Carnet, CorreoLogin, NombreCompleto } = user.recordset[0];
 
-    // 2. Actualizar localmente
     await this.db.Pool.request()
       .input('id', body.idCuentaPortal)
       .input('activo', body.activo ? 1 : 0)
       .query('UPDATE CuentaPortal SET Activo = @activo, FechaModificacion = GETDATE() WHERE IdCuentaPortal = @id');
 
-    // 3. Propagar a submódulos (Clima, Planer, etc.)
     await this.authService.syncToSubmodules({
       carnet: Carnet,
       nombre: NombreCompleto,
@@ -179,7 +170,6 @@ export class AdminController {
     return this.authService.toggleDelegation(body.id, body.active);
   }
 
-  // ── Crear usuario individual ──
   @Post('create-user')
   async createUser(@Req() req: FastifyRequest, @Body() body: {
     nombres: string;
@@ -195,16 +185,15 @@ export class AdminController {
     const correo = body.correo.trim().toLowerCase();
     const usuario = body.usuario?.trim() || correo.split('@')[0];
     const clave = body.clave || '123456';
+    const mustChangePassword = !body.clave || clave === '123456';
     const hash = await argon2.hash(clave);
 
-    // Verificar duplicado
     const dup = await pool.request().input('c', correo)
       .query('SELECT 1 FROM CuentaPortal WHERE CorreoLogin = @c');
     if (dup.recordset.length > 0) {
       return { ok: false, message: 'El correo ya existe en el sistema.' };
     }
 
-    // Insertar Persona
     const rPersona = await pool.request()
       .input('nombres', body.nombres.trim())
       .input('ape1', body.primerApellido.trim())
@@ -216,21 +205,20 @@ export class AdminController {
       `);
     const idPersona = rPersona.recordset[0].IdPersona;
 
-    // Insertar CuentaPortal
     const rCuenta = await pool.request()
       .input('idPersona', idPersona)
       .input('usuario', usuario)
       .input('correo', correo)
       .input('carnet', body.carnet.trim())
       .input('hash', hash)
+      .input('mustChangePassword', mustChangePassword ? 1 : 0)
       .query(`
-        INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, FechaCreacion)
+        INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, DebeCambiarClave, FechaCreacion)
         OUTPUT INSERTED.IdCuentaPortal
-        VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, GETDATE())
+        VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, @mustChangePassword, GETDATE())
       `);
     const idCuenta = rCuenta.recordset[0].IdCuentaPortal;
 
-    // Asignar Portal por defecto
     const rPortalApp = await pool.request().query("SELECT IdAplicacion FROM AplicacionSistema WHERE Codigo = 'portal' AND Activo = 1");
     if (rPortalApp.recordset.length > 0) {
       await pool.request()
@@ -240,20 +228,9 @@ export class AdminController {
     }
 
     this.logger.log(`✅ Usuario creado: ${correo} (ID: ${idCuenta})`);
-
-    // Sincronizar hacia submódulos inmediatamente
-    await this.authService.syncToSubmodules({
-      carnet: body.carnet.trim(),
-      nombre: (body.nombres + ' ' + body.primerApellido).trim(),
-      correo: correo,
-      activo: true,
-      esInterno: true
-    });
-
     return { ok: true, idCuentaPortal: idCuenta, message: `Usuario ${correo} creado exitosamente con clave por defecto.` };
   }
 
-  // ── Importar usuarios masivamente (JSON array) ──
   @Post('import-users')
   async importUsers(@Req() req: FastifyRequest, @Body() body: {
     usuarios: Array<{
@@ -298,13 +275,13 @@ export class AdminController {
           .input('correo', correo)
           .input('carnet', u.carnet.trim())
           .input('hash', hash)
+          .input('mustChangePassword', 1)
           .query(`
-            INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, FechaCreacion)
-            OUTPUT INSERTED.IdCuentaPortal VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, GETDATE())
+            INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, Bloqueado, EsInterno, DebeCambiarClave, FechaCreacion)
+            OUTPUT INSERTED.IdCuentaPortal VALUES (@idPersona, @usuario, @correo, @carnet, @hash, 1, 0, 1, @mustChangePassword, GETDATE())
           `);
         const idCuenta = rCuenta.recordset[0].IdCuentaPortal;
 
-        // Asignar Portal
         const rApp = await this.db.Pool.request().query("SELECT IdAplicacion FROM AplicacionSistema WHERE Codigo = 'portal' AND Activo = 1");
         if (rApp.recordset.length > 0) {
           await this.db.Pool.request().input('u', idCuenta).input('a', rApp.recordset[0].IdAplicacion)
@@ -312,15 +289,6 @@ export class AdminController {
         }
 
         results.push({ correo, ok: true, message: 'Creado' });
-
-        // Sincronizar hacia submódulos
-        await this.authService.syncToSubmodules({
-          carnet: u.carnet.trim(),
-          nombre: (u.nombres + ' ' + u.primerApellido).trim(),
-          correo: correo,
-          activo: true,
-          esInterno: true
-        });
       } catch (err) {
         results.push({ correo: u.correo, ok: false, message: String(err) });
       }
@@ -330,53 +298,5 @@ export class AdminController {
     const skipped = results.filter(r => !r.ok).length;
     this.logger.log(`📦 Importación masiva: ${created} creados, ${skipped} omitidos`);
     return { ok: true, creados: created, omitidos: skipped, detalle: results };
-  }
-
-  // ── Sincronizar y Crear masivamente desde CSV/Excel ──
-  @Post('sync-users-bulk')
-  async syncUsersBulk(@Req() req: FastifyRequest, @Body() body: {
-    usuarios: any[];
-    claveDefecto?: string;
-  }) {
-    await this.checkAdmin(req);
-    
-    try {
-      const count = body.usuarios?.length || 0;
-      this.logger.log(`📥 RECIBO MASIVO: [${count}] usuarios desde el cliente.`);
-
-      if (count === 0) return { ok: false, message: 'No hay usuarios para procesar.' };
-
-      // 1. Ejecutar Procedimiento Almacenado Masivo vía OPENJSON + MERGE
-      // Esto es 100x más rápido que un bucle 1x1
-      const result = await this.db.Pool.request()
-        .input('JsonData', mssql.NVarChar(mssql.MAX), JSON.stringify(body.usuarios))
-        .execute('dbo.spAdmin_SincronizarUsuariosBulk');
-
-      const procesados = result.recordset?.[0]?.Procesados || 0;
-
-      // 2. Sincronizar en segundo plano (Fire-and-forget) hacia submódulos
-      // No usamos 'await' aquí para que la UI responda de inmediato
-      if (Array.isArray(body.usuarios)) {
-        body.usuarios.forEach(u => {
-          this.authService.syncToSubmodules({
-            carnet: u.carnet,
-            nombre: u.nombre,
-            correo: u.correo,
-            activo: u.activo !== 0 && u.activo !== '0' && u.activo !== 'NO' && u.activo !== false,
-            esInterno: (u.es_interno || '').toString().toUpperCase() === 'SI'
-          });
-        });
-      }
-
-      return { 
-        ok: true, 
-        procesados, 
-        message: `${procesados} usuarios procesados exitosamente.` 
-      };
-
-    } catch (err: any) {
-      this.logger.error(`❌ Error en carga masiva SQL: ${err.message}`);
-      return { ok: false, message: err.message };
-    }
   }
 }
