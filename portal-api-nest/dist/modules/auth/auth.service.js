@@ -546,12 +546,25 @@ let AuthService = AuthService_1 = class AuthService {
     }
     async syncUsersBulk(users) {
         try {
-            const json = JSON.stringify(users);
+            const cleanedUsers = users.map(u => {
+                let email = (u.correo || '').trim().toLowerCase();
+                if (email && !email.includes('@')) {
+                    email += '@claro.com.ni';
+                }
+                return { ...u, correo: email };
+            });
+            const json = JSON.stringify(cleanedUsers);
             const res = await this.db.Pool.request()
                 .input('JsonData', json)
                 .execute('dbo.spAdmin_SincronizarUsuariosBulk');
+            await this.db.Pool.request().query(`
+         UPDATE CuentaPortal 
+         SET ClaveHash = '$argon2id$v=19$m=65536,t=3,p=4$IF0ViOF3r/QCycTvp8sLig$wa3CFzed/tcJD8z0He2ZtDamcXC+SWkCNjTeutSH5e4',
+             DebeCambiarClave = 1
+         WHERE ClaveHash = '123456' OR ClaveHash NOT LIKE '%argon2id%';
+      `);
             const processed = res.recordset[0]?.Procesados || 0;
-            this.logger.log(`✅ Sincronización Bulk completada: ${processed} usuarios procesados.`);
+            this.logger.log(`✅ Sincronización Bulk completada: ${processed} usuarios procesados. Saneamiento aplicado.`);
             return { processed };
         }
         catch (err) {
