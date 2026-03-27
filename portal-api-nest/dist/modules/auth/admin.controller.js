@@ -23,7 +23,7 @@ const argon2 = require("argon2");
 let AdminController = AdminController_1 = class AdminController {
     authService;
     db;
-    ADMIN_CARNET = '500708';
+    ADMIN_CARNETS = ['500708', '772'];
     logger = new common_1.Logger(AdminController_1.name);
     constructor(authService, db) {
         this.authService = authService;
@@ -32,7 +32,7 @@ let AdminController = AdminController_1 = class AdminController {
     async checkAdmin(req) {
         const session = req.sessionUser;
         const user = await this.authService.getUser(session.idCuentaPortal);
-        if (!user || user.carnet !== this.ADMIN_CARNET) {
+        if (!user || !this.ADMIN_CARNETS.includes(user.carnet)) {
             throw new common_1.UnauthorizedException('No tienes permisos de administrador.');
         }
     }

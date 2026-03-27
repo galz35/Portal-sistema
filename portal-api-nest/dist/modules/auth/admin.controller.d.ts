@@ -5,7 +5,7 @@ import * as mssql from 'mssql';
 export declare class AdminController {
     private readonly authService;
     private readonly db;
-    private readonly ADMIN_CARNET;
+    private readonly ADMIN_CARNETS;
     private readonly logger;
     constructor(authService: AuthService, db: DatabaseService);
     private checkAdmin;

@@ -10,7 +10,7 @@ import * as mssql from 'mssql';
 @Controller('api/admin')
 @UseGuards(SessionGuard)
 export class AdminController {
-  private readonly ADMIN_CARNET = '500708';
+  private readonly ADMIN_CARNETS = ['500708', '772'];
   private readonly logger = new Logger(AdminController.name);
 
   constructor(
@@ -21,7 +21,7 @@ export class AdminController {
   private async checkAdmin(req: FastifyRequest) {
     const session = (req as any).sessionUser as SessionUser;
     const user = await this.authService.getUser(session.idCuentaPortal);
-    if (!user || user.carnet !== this.ADMIN_CARNET) {
+    if (!user || !this.ADMIN_CARNETS.includes(user.carnet)) {
       throw new UnauthorizedException('No tienes permisos de administrador.');
     }
   }
