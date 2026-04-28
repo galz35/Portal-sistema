@@ -9,6 +9,7 @@ import { SecurityModule } from './shared/security/security.module';
 import { SesionesModule } from './modules/sesiones/sesiones.module';
 import { ObservabilidadModule } from './modules/observabilidad/observabilidad.module';
 import { NotificationModule } from './shared/notification/notification.module';
+import { IntegracionModule } from './modules/integracion/integracion.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { NotificationModule } from './shared/notification/notification.module';
     CoreAppsModule,
     ObservabilidadModule,
     NotificationModule,
+    IntegracionModule,
   ],
 })
 export class AppModule {}
