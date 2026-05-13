@@ -50,9 +50,10 @@ export class AuthService {
     portal: process.env.PORTAL_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/',
     planer: process.env.PLANER_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/planer/',
     clima: process.env.CLIMA_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/clima/',
-    clinica: process.env.CLINICA_PUBLIC_URL?.trim() || '',
-    inventario: process.env.INVENTARIO_PUBLIC_URL?.trim() || '',
-    vacante: process.env.VACANTE_PUBLIC_URL?.trim() || '',
+    clinica: process.env.CLINICA_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/clinica/',
+    inventario: process.env.INVENTARIO_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/inventario/',
+    vacante: process.env.VACANTE_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/vacante/',
+    vacantes: process.env.VACANTE_PUBLIC_URL?.trim() || 'https://www.rhclaroni.com/portal/vacante/',
   };
   private readonly submoduleSyncTargets = [
     {
@@ -75,8 +76,45 @@ export class AuthService {
     const code = (codigo ?? '').trim().toLowerCase();
     const currentRoute = (ruta ?? '').trim();
     const overrideRoute = (this.appRouteOverrides[code] ?? '').trim();
+    const clinicaRoute =
+      this.appRouteOverrides.clinica ||
+      'https://www.rhclaroni.com/portal/clinica/';
+    const inventarioRoute =
+      this.appRouteOverrides.inventario ||
+      'https://www.rhclaroni.com/portal/inventario/';
+    const vacanteRoute =
+      this.appRouteOverrides.vacante ||
+      this.appRouteOverrides.vacantes ||
+      'https://www.rhclaroni.com/portal/vacante/';
 
     if (!overrideRoute) {
+      if (/^https?:\/\/localhost(?::\d+)?(?:\/|$)/i.test(currentRoute)) {
+        const routeLower = currentRoute.toLowerCase();
+        if (
+          code.includes('clinic') ||
+          code.includes('medic') ||
+          routeLower.includes(':5176') ||
+          routeLower.includes('/clinica')
+        ) {
+          return clinicaRoute;
+        }
+        if (
+          code.includes('invent') ||
+          routeLower.includes(':5175') ||
+          routeLower.includes('/invent')
+        ) {
+          return inventarioRoute;
+        }
+        if (
+          code.includes('vac') ||
+          routeLower.includes(':5174') ||
+          routeLower.includes(':5177') ||
+          routeLower.includes('/vacant') ||
+          routeLower.includes('/vacantes')
+        ) {
+          return vacanteRoute;
+        }
+      }
       return currentRoute;
     }
 
@@ -602,16 +640,17 @@ export class AuthService {
       const idPersona = resP.recordset[0].IdPersona;
 
       // 2. Crear CuentaPortal
+      const defaultHash = '$argon2id$v=19$m=65536,t=3,p=4$IF0ViOF3r/QCycTvp8sLig$wa3CFzed/tcJD8z0He2ZtDamcXC+SWkCNjTeutSH5e4';
       await this.db.Pool.request()
         .input("idp", idPersona)
         .input("u", data.correoLogin.split('@')[0])
         .input("c", data.correoLogin)
-        .input("p", "123456") // Password por defecto
         .input("car", data.carnet)
+        .input("hash", defaultHash)
         .input("int", data.esInterno ? 1 : 0)
         .query(`
-          INSERT INTO CuentaPortal (IdPersona, Usuario, Clave, CorreoLogin, Carnet, Activo, EsInterno)
-          VALUES (@idp, @u, @c, @c, @car, 1, @int)
+          INSERT INTO CuentaPortal (IdPersona, Usuario, CorreoLogin, Carnet, ClaveHash, Activo, EsInterno, DebeCambiarClave)
+          VALUES (@idp, @u, @c, @car, @hash, 1, @int, 1)
         `);
 
       // 3. Crear Empleado (Metadata local)
